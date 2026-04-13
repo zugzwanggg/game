@@ -61,7 +61,7 @@ There is **no root `package.json`**; the Vite app is only under **`frontend/`**.
    - **`VITE_SOCKET_URL`** — same host as Socket.IO (usually the same as the API origin).
 5. Redeploy after changing env vars (`VITE_*` are baked in at build time).
 
-If you previously used a **root** `vercel.json` with `cd frontend`, remove it or leave Root Directory at **`frontend`** only — otherwise the shell is already inside `frontend` and `cd frontend` fails with “No such file or directory”.
+**If the build still runs `cd frontend && npm ci`:** that text is **not** in this repo anymore — Vercel is using a **saved override**. Open **Project → Settings → Build and Development Settings** (or **General** on older UI) and **clear** the **Install Command** field (use the default / empty so [`frontend/vercel.json`](./frontend/vercel.json) applies), or set it to **`npm ci`** only (no `cd`). **Root Directory** must stay **`frontend`**. Save and redeploy.
 
 ### Backend is not on Vercel
 
