@@ -1,7 +1,7 @@
 import cors from 'cors'
 import express from 'express'
-import helmet from 'helmet'
 import cookieParser from 'cookie-parser'
+import * as helmet from 'helmet'
 import { authRouter } from './routes/auth.js'
 import { roomsRouter } from './routes/rooms.js'
 import { statsRouter } from './routes/stats.js'
@@ -17,7 +17,7 @@ if (
 }
 
 app.use(
-  helmet({
+  helmet.default({
     contentSecurityPolicy: false,
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }),
