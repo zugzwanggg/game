@@ -36,3 +36,4 @@ coverage/
 *.local
 *.pem
 .turbo/
+.vercel
