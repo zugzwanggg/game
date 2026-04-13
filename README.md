@@ -51,20 +51,17 @@ See [SECURITY.md](./SECURITY.md) for more detail.
 
 ## Deploying the frontend (Vercel)
 
-This repo has **no root `package.json`**. The Vite app lives in **`frontend/`**.
-
-### Option A — Import the repo (recommended)
+There is **no root `package.json`**; the Vite app is only under **`frontend/`**.
 
 1. Create a Vercel project and connect this Git repository.
-2. Leave the project root at the **repository root** (default). The root [`vercel.json`](./vercel.json) installs and builds from `frontend/` and publishes `frontend/dist`.
-3. In **Vercel → Settings → Environment Variables** (Production / Preview), set:
-   - **`VITE_API_URL`** — your backend base URL, e.g. `https://api.yourdomain.com` (must be **HTTPS** in production).
+2. **Project → Settings → General → Root Directory** → set to **`frontend`** (required). Vercel will run `npm install` / `npm run build` from that folder and detect Vite.
+3. SPA routing uses [`frontend/vercel.json`](./frontend/vercel.json) (rewrite to `index.html`).
+4. In **Settings → Environment Variables** (Production / Preview), set:
+   - **`VITE_API_URL`** — your backend base URL, e.g. `https://api.yourdomain.com` (use **HTTPS** in production).
    - **`VITE_SOCKET_URL`** — same host as Socket.IO (usually the same as the API origin).
-4. Redeploy after changing env vars (they are baked in at build time for `VITE_*`).
+5. Redeploy after changing env vars (`VITE_*` are baked in at build time).
 
-### Option B — Root directory = `frontend`
-
-In the Vercel project, set **Root Directory** to `frontend`. Vercel will auto-detect Vite; [`frontend/vercel.json`](./frontend/vercel.json) adds SPA **fallback** so client-side routes work. You still must set **`VITE_API_URL`** and **`VITE_SOCKET_URL`** as above.
+If you previously used a **root** `vercel.json` with `cd frontend`, remove it or leave Root Directory at **`frontend`** only — otherwise the shell is already inside `frontend` and `cd frontend` fails with “No such file or directory”.
 
 ### Backend is not on Vercel
 
