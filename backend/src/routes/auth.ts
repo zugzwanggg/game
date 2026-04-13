@@ -1,5 +1,5 @@
 import express from 'express'
-import rateLimit from 'express-rate-limit'
+import { rateLimit } from 'express-rate-limit'
 import { optionalAuth } from '../auth/middleware.js'
 import { guest, login, logout, me, signup } from '../controllers/authController.js'
 
