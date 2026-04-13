@@ -7,7 +7,7 @@ import { authRouter } from './routes/auth.js'
 import { roomsRouter } from './routes/rooms.js'
 import { statsRouter } from './routes/stats.js'
 import { klipyRouter } from './routes/klipy.js'
-import { getCorsOrigins } from './corsOrigins.js'
+import { getCorsOriginsList, normalizeOrigin } from './corsOrigins.js'
 
 export const app = express()
 
@@ -31,7 +31,18 @@ app.use(
 )
 app.use(
   cors({
-    origin: getCorsOrigins(),
+    origin: (requestOrigin, callback) => {
+      const allowed = getCorsOriginsList()
+      if (!requestOrigin) {
+        callback(null, true)
+        return
+      }
+      if (allowed.includes(normalizeOrigin(requestOrigin))) {
+        callback(null, true)
+      } else {
+        callback(null, false)
+      }
+    },
     credentials: true,
   }),
 )

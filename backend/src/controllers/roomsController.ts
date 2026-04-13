@@ -2,6 +2,7 @@ import type { Response } from 'express'
 import type { AuthedRequest } from '../auth/middleware.js'
 import { createRoom, getRoom, listRoomsCount, pickRandomPublicRoom } from '../rooms/store.js'
 import type { GameKey, RoomState } from '../rooms/types.js'
+import { getCorsOriginsList } from '../corsOrigins.js'
 
 function matchActive(room: RoomState): boolean {
   if (room.game === 'drawing') {
@@ -16,7 +17,8 @@ function matchActive(room: RoomState): boolean {
 }
 
 function toInviteUrl(code: string, game: GameKey) {
-  const origin = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173'
+  const origins = getCorsOriginsList()
+  const origin = origins[0] ?? 'http://localhost:5173'
   return `${origin}/room/${code}?game=${encodeURIComponent(game)}`
 }
 
