@@ -7,6 +7,7 @@ import { authRouter } from './routes/auth.js'
 import { roomsRouter } from './routes/rooms.js'
 import { statsRouter } from './routes/stats.js'
 import { klipyRouter } from './routes/klipy.js'
+import { getCorsOrigins } from './corsOrigins.js'
 
 export const app = express()
 
@@ -30,7 +31,7 @@ app.use(
 )
 app.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
+    origin: getCorsOrigins(),
     credentials: true,
   }),
 )
