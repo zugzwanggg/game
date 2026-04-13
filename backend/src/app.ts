@@ -1,7 +1,8 @@
 import cors from 'cors'
-import express from 'express'
+import express, { type RequestHandler } from 'express'
 import cookieParser from 'cookie-parser'
-import * as helmet from 'helmet'
+import * as helmetModule from 'helmet'
+import type { HelmetOptions } from 'helmet'
 import { authRouter } from './routes/auth.js'
 import { roomsRouter } from './routes/rooms.js'
 import { statsRouter } from './routes/stats.js'
@@ -16,8 +17,13 @@ if (
   app.set('trust proxy', 1)
 }
 
+// Helmet's ESM/CJS typings resolve to the module namespace under TS 6 + NodeNext; assert to the real factory.
+const helmet = helmetModule.default as unknown as (
+  options?: Readonly<HelmetOptions>,
+) => RequestHandler
+
 app.use(
-  helmet.default({
+  helmet({
     contentSecurityPolicy: false,
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }),
