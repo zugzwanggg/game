@@ -14,7 +14,7 @@ If you find a vulnerability, please report it privately to the repository mainta
 ## Authentication
 
 - Passwords are hashed with bcrypt; plaintext passwords are not stored.
-- Sessions use HTTP-only cookies with `SameSite=Lax`; `Secure` is enabled when `NODE_ENV=production`.
+- Sessions use HTTP-only cookies (`SameSite=None` + `Secure` in production for cross-origin SPAs; `SameSite=Lax` locally). The API also returns the JWT in JSON on login/signup/guest; the SPA may store it in `localStorage` and send `Authorization: Bearer` when cookies are blocked (e.g. some mobile browsers).
 - JWTs are signed with `AUTH_SECRET`; in production the server refuses to start without it (see `getAuthSecret()` in `backend/src/auth/middleware.ts`).
 
 ## Transport and deployment

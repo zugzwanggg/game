@@ -1,3 +1,5 @@
+import { getStoredAuthToken } from './authToken'
+
 /** Backend mounts REST under `/api` (see backend `app.use('/api', ...)`). */
 export function getApiBase(): string {
   const raw = import.meta.env.VITE_API_URL?.replace(/\/+$/, '') ?? ''
@@ -16,6 +18,10 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set('content-type', 'application/json')
+  const bearer = getStoredAuthToken()
+  if (bearer && !headers.has('authorization')) {
+    headers.set('authorization', `Bearer ${bearer}`)
+  }
 
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,

@@ -37,7 +37,18 @@ export function initSocket(httpServer: HttpServer): Server {
   io.use((socket, next) => {
     const cookieHeader = socket.handshake.headers.cookie as string | undefined
     const cookieToken = getCookie(cookieHeader, AUTH_COOKIE_NAME)
-    const raw = cookieToken ?? (socket.handshake.headers['authorization'] as string | undefined)?.replace(/^Bearer\s+/i, '')
+    const authPayload = socket.handshake.auth as { token?: string } | undefined
+    const authToken =
+      typeof authPayload?.token === 'string' ? authPayload.token.trim() : ''
+    const headerBearer = (socket.handshake.headers['authorization'] as string | undefined)?.replace(
+      /^Bearer\s+/i,
+      '',
+    )
+    const raw =
+      cookieToken ||
+      headerBearer ||
+      authToken ||
+      null
     if (!raw) return next()
     const payload = verifyToken(String(raw), getAuthSecret())
     if (payload) {

@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '../lib/api'
+import { clearStoredAuthToken, setStoredAuthToken } from '../lib/authToken'
+import { resetSocket } from '../lib/socket'
 
 export type Principal =
   | null
@@ -34,30 +36,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const login = async (args: { email: string; password: string }) => {
-    await apiFetch<{ user: any }>('/auth/login', {
+    const data = await apiFetch<{ user: any; token?: string }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(args),
     })
+    if (data.token) setStoredAuthToken(data.token)
+    resetSocket()
     await refresh()
   }
 
   const signup = async (args: { email: string; password: string; displayName: string }) => {
-    await apiFetch<{ user: any }>('/auth/signup', {
+    const data = await apiFetch<{ user: any; token?: string }>('/auth/signup', {
       method: 'POST',
       body: JSON.stringify(args),
     })
+    if (data.token) setStoredAuthToken(data.token)
+    resetSocket()
     await refresh()
   }
 
   const guest = async (args: { displayName?: string }) => {
-    await apiFetch<{ guest: any }>('/auth/guest', {
+    const data = await apiFetch<{ guest: any; token?: string }>('/auth/guest', {
       method: 'POST',
       body: JSON.stringify(args),
     })
+    if (data.token) setStoredAuthToken(data.token)
+    resetSocket()
     await refresh()
   }
 
   const logout = () => {
+    clearStoredAuthToken()
+    resetSocket()
     void apiFetch('/auth/logout', { method: 'POST' }).catch(() => {})
     setPrincipal(null)
   }

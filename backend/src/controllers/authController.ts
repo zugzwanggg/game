@@ -61,7 +61,10 @@ export async function signup(req: Request, res: Response) {
       { expiresInSec: USER_TOKEN_TTL_SEC },
     )
     res.cookie(AUTH_COOKIE_NAME, token, cookieOpts(USER_TOKEN_TTL_SEC))
-    res.json({ user: { id: user.id, email: user.email, displayName: user.displayName } })
+    res.json({
+      user: { id: user.id, email: user.email, displayName: user.displayName },
+      token,
+    })
   } catch {
     res.status(409).json({ error: 'email_taken' })
   }
@@ -87,7 +90,7 @@ export async function login(req: Request, res: Response) {
     { expiresInSec: USER_TOKEN_TTL_SEC },
   )
   res.cookie(AUTH_COOKIE_NAME, token, cookieOpts(USER_TOKEN_TTL_SEC))
-  res.json({ user: { id: user.id, email: user.email, displayName: user.displayName } })
+  res.json({ user: { id: user.id, email: user.email, displayName: user.displayName }, token })
 }
 
 export async function guest(req: Request, res: Response) {
@@ -100,7 +103,7 @@ export async function guest(req: Request, res: Response) {
     { expiresInSec: GUEST_TOKEN_TTL_SEC },
   )
   res.cookie(AUTH_COOKIE_NAME, token, cookieOpts(GUEST_TOKEN_TTL_SEC))
-  res.json({ guest: { id: guestId, displayName } })
+  res.json({ guest: { id: guestId, displayName }, token })
 }
 
 export async function logout(_req: Request, res: Response) {
