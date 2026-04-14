@@ -8,28 +8,20 @@ import { createUser, findUserByEmail, findUserById } from '../db/users.js'
 const USER_TOKEN_TTL_SEC = Number(process.env.USER_TOKEN_TTL_SEC ?? 60 * 60 * 24)
 const GUEST_TOKEN_TTL_SEC = Number(process.env.GUEST_TOKEN_TTL_SEC ?? 60 * 60 * 6)
 
-const isProd = process.env.NODE_ENV === 'production'
-
-/**
- * Cross-origin SPA (e.g. Vercel → API on another domain): browsers do not attach
- * SameSite=Lax cookies to credentialed fetch/XHR. Use None + Secure over HTTPS.
- * Local dev: localhost↔localhost stays Lax (same-site).
- */
-function sessionCookieFlags() {
-  const secure = isProd
-  const sameSite = isProd ? ('none' as const) : ('lax' as const)
-  return { httpOnly: true, sameSite, secure, path: '/' as const }
-}
-
 function cookieOpts(ttlSec: number) {
+  const secure = process.env.NODE_ENV === 'production'
   return {
-    ...sessionCookieFlags(),
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure,
+    path: '/',
     maxAge: ttlSec * 1000,
   }
 }
 
 function clearAuthCookieOpts() {
-  return sessionCookieFlags()
+  const secure = process.env.NODE_ENV === 'production'
+  return { path: '/', sameSite: 'lax' as const, secure }
 }
 
 export async function signup(req: Request, res: Response) {

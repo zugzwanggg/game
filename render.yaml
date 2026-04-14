@@ -1,0 +1,15 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Connect this repo in Render and use "Apply Blueprint", or create a Web Service manually with the same commands.
+
+services:
+  - type: web
+    name: gamemaxxing-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production

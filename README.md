@@ -71,6 +71,22 @@ On that host, set **`CLIENT_ORIGIN`** to your Vercel URL (e.g. `https://your-app
 
 Preview deployments get a different `*.vercel.app` URL; your backend CORS must allow that origin too, or use a separate preview API / env.
 
+### Backend on Render
+
+Do **not** use `npm run dev` in production — it runs **nodemon**, which is a **devDependency** and is not installed on Render’s production install (`nodemon: not found`).
+
+In the Render service **Settings**:
+
+| Field | Value |
+| ----- | ----- |
+| **Root Directory** | `backend` |
+| **Build Command** | `npm install && npm run build` |
+| **Start Command** | `npm start` |
+
+`npm start` runs `node dist/index.js` after `npm run build` compiles TypeScript. Set **`NODE_ENV=production`**, **`PORT`** (Render injects it automatically), **`DATABASE_URL`**, **`AUTH_SECRET`**, **`CLIENT_ORIGIN`**, **`TRUST_PROXY=1`**, etc. in **Environment**.
+
+You can also use the repo [`render.yaml`](./render.yaml) as a Blueprint (adjust name/region/plan as needed).
+
 ## License
 
 Private project unless you add a public license.

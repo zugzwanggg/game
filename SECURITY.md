@@ -14,7 +14,7 @@ If you find a vulnerability, please report it privately to the repository mainta
 ## Authentication
 
 - Passwords are hashed with bcrypt; plaintext passwords are not stored.
-- Sessions use HTTP-only cookies. In **development**, `SameSite=Lax` (localhost ↔ localhost). In **production**, `SameSite=None` and `Secure` so credentialed `fetch` from a separate frontend origin (e.g. Vercel + API host) receives the cookie; the API must be served over **HTTPS**.
+- Sessions use HTTP-only cookies with `SameSite=Lax`; `Secure` is enabled when `NODE_ENV=production`.
 - JWTs are signed with `AUTH_SECRET`; in production the server refuses to start without it (see `getAuthSecret()` in `backend/src/auth/middleware.ts`).
 
 ## Transport and deployment
