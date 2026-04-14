@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import type { Request, Response } from 'express'
 import { createServer } from 'node:http'
 import { app } from './app.js'
 import { checkDb, pool } from './db/pool.js'
@@ -9,7 +10,7 @@ const httpServer = createServer(app)
 
 initSocket(httpServer)
 
-app.get('/health/db', async (_req, res) => {
+app.get('/health/db', async (_req: Request, res: Response) => {
   const ok = await checkDb()
   res.status(ok ? 200 : 503).json({ database: ok ? 'up' : 'down' })
 })

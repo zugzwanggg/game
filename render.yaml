@@ -8,7 +8,8 @@ services:
     plan: free
     region: oregon
     rootDir: backend
-    buildCommand: npm install && npm run build
+    # Install devDependencies too (typescript, @types/*) — NODE_ENV=production skips them otherwise.
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV

@@ -1,5 +1,5 @@
 import cors from 'cors'
-import express, { type RequestHandler } from 'express'
+import express, { type Request, type RequestHandler, type Response } from 'express'
 import cookieParser from 'cookie-parser'
 import * as helmetModule from 'helmet'
 import type { HelmetOptions } from 'helmet'
@@ -43,6 +43,6 @@ app.use('/api', roomsRouter)
 app.use('/api', statsRouter)
 app.use('/api', klipyRouter)
 
-app.get('/health', (_req, res) => {
+app.get('/health', (_req: Request, res: Response) => {
   res.json({ ok: true })
 })

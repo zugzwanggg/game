@@ -1,0 +1,12 @@
+{
+  "name": "gamemaxxing",
+  "private": true,
+  "description": "Monorepo root — deploy only when Render Root Directory is empty (repo root). Prefer Root Directory = backend.",
+  "scripts": {
+    "build": "cd backend && npm ci --include=dev && npm run build",
+    "start": "node backend/dist/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

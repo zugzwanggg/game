@@ -73,19 +73,21 @@ Preview deployments get a different `*.vercel.app` URL; your backend CORS must a
 
 ### Backend on Render
 
-Do **not** use `npm run dev` in production — it runs **nodemon**, which is a **devDependency** and is not installed on Render’s production install (`nodemon: not found`).
+Do **not** use `npm run dev` in production — it runs **nodemon**, which is a **devDependency** and is not installed on Render (`nodemon: not found`).
 
-In the Render service **Settings**:
+In the Render service **Settings → Build & Deploy**, set **Start Command** to exactly **`npm start`** (not `npm run dev`). If you leave an old value, Render keeps using it until you change it.
 
 | Field | Value |
 | ----- | ----- |
 | **Root Directory** | `backend` |
-| **Build Command** | `npm install && npm run build` |
+| **Build Command** | `npm install --include=dev && npm run build` |
 | **Start Command** | `npm start` |
 
-`npm start` runs `node dist/index.js` after `npm run build` compiles TypeScript. Set **`NODE_ENV=production`**, **`PORT`** (Render injects it automatically), **`DATABASE_URL`**, **`AUTH_SECRET`**, **`CLIENT_ORIGIN`**, **`TRUST_PROXY=1`**, etc. in **Environment**.
+`npm start` runs `node dist/index.js`. Set **`NODE_ENV=production`**, **`DATABASE_URL`**, **`AUTH_SECRET`**, **`CLIENT_ORIGIN`**, **`TRUST_PROXY=1`**, etc. in **Environment** (`PORT` is set by Render).
 
-You can also use the repo [`render.yaml`](./render.yaml) as a Blueprint (adjust name/region/plan as needed).
+If **Root Directory** is empty (repo root), use the root [`package.json`](./package.json): **Build** `npm run build`, **Start** `npm start`.
+
+See [`backend/README.md`](./backend/README.md) for the same checklist. You can also use [`render.yaml`](./render.yaml) as a Blueprint (adjust name/region/plan as needed).
 
 ## License
 

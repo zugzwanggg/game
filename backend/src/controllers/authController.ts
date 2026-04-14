@@ -8,20 +8,33 @@ import { createUser, findUserByEmail, findUserById } from '../db/users.js'
 const USER_TOKEN_TTL_SEC = Number(process.env.USER_TOKEN_TTL_SEC ?? 60 * 60 * 24)
 const GUEST_TOKEN_TTL_SEC = Number(process.env.GUEST_TOKEN_TTL_SEC ?? 60 * 60 * 6)
 
+/**
+ * SPA on another origin (e.g. Vercel) calling this API (e.g. Render) is cross-site.
+ * SameSite=Lax cookies are NOT attached to credentialed fetch/XHR — use None + Secure (HTTPS).
+ * Set AUTH_COOKIE_CROSS_SITE=0 to force Lax (e.g. same-site debugging).
+ */
+function useCrossSiteAuthCookies(): boolean {
+  if (process.env.AUTH_COOKIE_CROSS_SITE === '0') return false
+  if (process.env.AUTH_COOKIE_CROSS_SITE === '1') return true
+  return process.env.NODE_ENV === 'production'
+}
+
+function sessionCookieFlags() {
+  const crossSite = useCrossSiteAuthCookies()
+  const secure = crossSite
+  const sameSite = crossSite ? ('none' as const) : ('lax' as const)
+  return { httpOnly: true, sameSite, secure, path: '/' as const }
+}
+
 function cookieOpts(ttlSec: number) {
-  const secure = process.env.NODE_ENV === 'production'
   return {
-    httpOnly: true,
-    sameSite: 'lax' as const,
-    secure,
-    path: '/',
+    ...sessionCookieFlags(),
     maxAge: ttlSec * 1000,
   }
 }
 
 function clearAuthCookieOpts() {
-  const secure = process.env.NODE_ENV === 'production'
-  return { path: '/', sameSite: 'lax' as const, secure }
+  return sessionCookieFlags()
 }
 
 export async function signup(req: Request, res: Response) {

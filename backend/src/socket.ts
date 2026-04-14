@@ -8,6 +8,7 @@ import type { RoomPlayer } from './rooms/types.js'
 import { normalizeGuess, pickRandomWord, toHint } from './games/drawing/words.js'
 import { startMemeMatch } from './games/meme/engine.js'
 import { sanitizeMemeGif } from './games/meme/sanitize.js'
+import { getCorsOrigins } from './corsOrigins.js'
 
 let io: Server | null = null
 
@@ -17,7 +18,7 @@ const revealedTurnByRoom = new Map<string, string>()
 export function initSocket(httpServer: HttpServer): Server {
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
+      origin: getCorsOrigins(),
       methods: ['GET', 'POST'],
       credentials: true,
     },
