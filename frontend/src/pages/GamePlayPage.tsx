@@ -1,4 +1,5 @@
 import { Navigate, useParams } from 'react-router-dom'
+import { GameWorld } from '../components/game/GameWorld'
 import GuessDrawingGame from '../games/drawing/GuessDrawingGame'
 import MemeBattleGame from '../games/meme/MemeBattleGame'
 
@@ -7,17 +8,17 @@ export default function GamePlayPage() {
 
   if (gameId === 'drawing') {
     return (
-      <div className="flex min-h-0 flex-col bg-base h-dvh max-h-dvh overflow-y-auto overflow-x-hidden">
+      <GameWorld className="h-dvh max-h-dvh overflow-y-auto overflow-x-hidden" theme="drawing">
         <GuessDrawingGame />
-      </div>
+      </GameWorld>
     )
   }
 
   if (gameId === 'meme') {
     return (
-      <div className="flex min-h-0 flex-col bg-base h-dvh max-h-dvh overflow-y-auto overflow-x-hidden">
+      <GameWorld className="h-dvh max-h-dvh overflow-y-auto overflow-x-hidden" theme="meme">
         <MemeBattleGame />
-      </div>
+      </GameWorld>
     )
   }
 

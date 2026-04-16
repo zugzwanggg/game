@@ -372,18 +372,6 @@ export default function GuessDrawingGame() {
     setRole('drawer')
   }, [])
 
-  const setRoleDrawer = () => {
-    if (gamePhase !== 'playing') return
-    setDrawerTurnPhase('drawing')
-    setRole('drawer')
-  }
-
-  const setRoleGuesser = () => {
-    if (gamePhase !== 'playing') return
-    setDrawerTurnPhase('drawing')
-    becomeGuesserFromDrawer()
-  }
-
   const dismissLeaderboardAndContinue = () => {
     if (isOnline) return
     const wasFinalRound = activeRound >= MAX_ROUNDS
@@ -650,86 +638,53 @@ export default function GuessDrawingGame() {
   const backTarget = '/games/drawing'
 
   return (
-    <div className="relative flex flex-1 flex-col px-4 py-4 sm:px-6 sm:py-5 lg:min-h-0 lg:overflow-hidden">
+    <div className="relative flex flex-1 flex-col px-4 py-4 sm:px-6 sm:py-5 lg:min-h-0 lg:overflow-hidden gw-enter">
       <RoomPresenceBanner
         message={presencePayload?.text ?? null}
         kind={presencePayload?.kind ?? null}
         onDismiss={dismissPresence}
       />
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              if (isOnline && roomCode) {
-                const socket = getSocket()
-                if (socket.connected) socket.emit('room:leave')
-                removeRecentRoom(roomCode)
-              }
-              void navigate(backTarget)
-            }}
-            className="flex items-center gap-2 text-sm text-muted transition-colors hover:text-text"
-          >
-            <ArrowLeft size={15} /> Back
-          </button>
-          <Link
-            to="/games/drawing"
-            className="text-sm font-medium text-accent hover:text-accent/80"
-          >
-            Game details
-          </Link>
-          {isOnline && playerCount !== null && (
-            <span className="rounded-lg border border-border bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted">
-              {playerCount} players
-            </span>
-          )}
-          {roomCode && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                const socket = getSocket()
-                socket.emit('room:leave')
-                removeRecentRoom(roomCode)
-                void navigate('/games')
-              }}
-            >
-              Quit room
-            </Button>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-            Simulate
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            if (isOnline && roomCode) {
+              const socket = getSocket()
+              if (socket.connected) socket.emit('room:leave')
+              removeRecentRoom(roomCode)
+            }
+            void navigate(backTarget)
+          }}
+          className="gw-focus-ring inline-flex items-center gap-2 rounded-xl border border-[color:var(--gw-border)] bg-[color:var(--gw-panel)] px-3 py-2 text-sm text-muted shadow-card transition-all hover:-translate-y-0.5 hover:text-text hover:shadow-[0_0_0_1px_var(--gw-border),0_14px_50px_rgba(0,0,0,0.35)]"
+        >
+          <ArrowLeft size={15} /> Back
+        </button>
+        <Link
+          to="/games/drawing"
+          className="text-sm font-medium text-accent hover:text-accent/80"
+        >
+          Game details
+        </Link>
+        {isOnline && playerCount !== null && (
+          <span className="rounded-lg border border-border bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted">
+            {playerCount} players
           </span>
-          <div className="flex rounded-xl border border-border bg-surface p-1">
-            <button
-              type="button"
-              disabled={gamePhase !== 'playing'}
-              onClick={setRoleDrawer}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                role === 'drawer'
-                  ? 'bg-accent text-white'
-                  : 'text-muted hover:text-text'
-              }`}
-            >
-              Drawing
-            </button>
-            <button
-              type="button"
-              disabled={gamePhase !== 'playing'}
-              onClick={setRoleGuesser}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                role === 'guesser'
-                  ? 'bg-accent text-white'
-                  : 'text-muted hover:text-text'
-              }`}
-            >
-              Guessing
-            </button>
-          </div>
-        </div>
+        )}
+        {roomCode && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const socket = getSocket()
+              socket.emit('room:leave')
+              removeRecentRoom(roomCode)
+              void navigate('/games')
+            }}
+          >
+            Quit room
+          </Button>
+        )}
       </div>
 
       <div className="mb-4 max-w-md">
@@ -740,7 +695,7 @@ export default function GuessDrawingGame() {
             players={voicePlayers}
           />
         ) : (
-          <div className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-muted">
+          <div className="gw-panel rounded-xl px-3 py-2.5 text-sm text-muted">
             Room voice is available when you play online in a shared room.
           </div>
         )}
@@ -860,7 +815,7 @@ export default function GuessDrawingGame() {
 
           <div
             ref={wrapRef}
-            className={`relative min-h-70 flex-1 overflow-hidden rounded-2xl border border-border bg-surface sm:min-h-90 ${
+            className={`relative min-h-70 flex-1 overflow-hidden rounded-2xl border border-[color:var(--gw-border)] bg-[color:var(--gw-panel-strong)] shadow-[0_0_0_1px_var(--gw-border),0_18px_70px_rgba(0,0,0,0.45)] sm:min-h-90 ${
               role === 'drawer' &&
               !roundSolved &&
               drawerTurnPhase === 'drawing'
@@ -928,8 +883,8 @@ export default function GuessDrawingGame() {
           </div>
         </section>
 
-        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card lg:col-span-2">
-          <div className="border-b border-border px-4 py-3">
+        <section className="gw-panel flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl lg:col-span-2">
+          <div className="border-b border-[color:var(--gw-border)] px-4 py-3">
             <h2 className="text-sm font-semibold text-text">Guesses</h2>
             <p className="text-xs text-muted">Chat is for guesses only (UI demo).</p>
           </div>
@@ -940,10 +895,10 @@ export default function GuessDrawingGame() {
                   key={m.id}
                   className={`rounded-lg px-3 py-2 text-sm ${
                     m.variant === 'system'
-                      ? 'border border-border/60 bg-surface/80 text-muted'
+                      ? 'border border-[color:var(--gw-border)] bg-[color:var(--gw-panel)] text-muted'
                       : m.variant === 'correct'
                         ? 'border border-teal/40 bg-teal/15 font-semibold text-teal'
-                        : 'bg-surface text-text'
+                        : 'bg-[color:var(--gw-panel)] text-text'
                   }`}
                 >
                   <span className="text-xs font-semibold text-muted">
@@ -955,7 +910,7 @@ export default function GuessDrawingGame() {
             </div>
             <form
               onSubmit={sendGuess}
-              className="border-t border-border p-3"
+              className="border-t border-[color:var(--gw-border)] p-3"
             >
               {role === 'guesser' && !roundSolved && gamePhase === 'playing' ? (
                 <div className="flex gap-2">
@@ -963,7 +918,7 @@ export default function GuessDrawingGame() {
                     value={guessInput}
                     onChange={(e) => setGuessInput(e.target.value)}
                     placeholder="Type your guess…"
-                    className="min-w-0 flex-1 rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none placeholder:text-muted focus:border-accent/60"
+                    className="gw-focus-ring min-w-0 flex-1 rounded-xl border border-[color:var(--gw-border)] bg-[color:var(--gw-panel)] px-3 py-2.5 text-sm text-text outline-none placeholder:text-muted focus:border-[color:var(--gw-accent)]"
                     autoComplete="off"
                   />
                   <Button

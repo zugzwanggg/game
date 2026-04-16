@@ -248,7 +248,7 @@ export default function MemeBattleGame() {
   }, [status, autoReveal, revealOrder.length])
 
   return (
-    <div className="relative flex flex-1 flex-col px-4 py-4 sm:px-6 sm:py-5 lg:min-h-0 lg:overflow-hidden">
+    <div className="relative flex flex-1 flex-col px-4 py-4 sm:px-6 sm:py-5 lg:min-h-0 lg:overflow-hidden gw-enter">
       <RoomPresenceBanner
         message={presencePayload?.text ?? null}
         kind={presencePayload?.kind ?? null}
@@ -258,7 +258,7 @@ export default function MemeBattleGame() {
         <div className="flex flex-wrap items-center gap-3">
           <Link
             to={backTarget}
-            className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-muted hover:text-text"
+            className="gw-focus-ring inline-flex items-center gap-2 rounded-xl border border-[color:var(--gw-border)] bg-[color:var(--gw-panel)] px-3 py-2 text-sm text-muted shadow-card transition-all hover:-translate-y-0.5 hover:text-text hover:shadow-[0_0_0_1px_var(--gw-border),0_14px_50px_rgba(0,0,0,0.35)]"
             onClick={(e) => {
               if (roomCode) {
                 e.preventDefault()
@@ -304,7 +304,7 @@ export default function MemeBattleGame() {
       )}
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
-        <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-surface p-4">
+        <div className="gw-panel flex min-h-0 flex-1 flex-col rounded-2xl p-4">
           {status === 'lobby' && (
             <div className="flex flex-1 flex-col items-center justify-center text-center">
               <div className="mb-2 text-lg font-semibold text-text">Ready to battle?</div>
@@ -436,7 +436,7 @@ export default function MemeBattleGame() {
                     value={gifQuery}
                     onChange={(e) => setGifQuery(e.target.value)}
                     placeholder="Search GIFs"
-                    className="w-full rounded-xl border border-border bg-base px-10 py-2.5 text-sm text-text placeholder:text-muted outline-none focus:border-accent/60"
+                    className="gw-focus-ring w-full rounded-xl border border-[color:var(--gw-border)] bg-[color:var(--gw-panel)] px-10 py-2.5 text-sm text-text placeholder:text-muted outline-none focus:border-[color:var(--gw-accent)]"
                   />
                 </div>
                 <Button type="submit" variant="ghost" disabled={gifLoading}>
@@ -453,7 +453,7 @@ export default function MemeBattleGame() {
                 </div>
               )}
 
-              <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border">
+              <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-[color:var(--gw-border)]">
                 <div className="max-h-[min(52vh,28rem)] overflow-y-auto overscroll-contain p-3 [scrollbar-gutter:stable]">
                   {gifLoading ? (
                     <div className="py-8 text-center text-sm text-muted">Loading GIFs…</div>
@@ -467,7 +467,9 @@ export default function MemeBattleGame() {
                             key={g.id}
                             className={[
                               'group overflow-hidden rounded-xl border transition-all',
-                              active ? 'border-teal/60' : 'border-border hover:border-accent/40',
+                              active
+                                ? 'border-[color:var(--gw-accent)] shadow-[0_0_0_1px_var(--gw-border),0_0_35px_var(--gw-glow)]'
+                                : 'border-[color:var(--gw-border)] hover:border-[color:var(--gw-accent)]',
                             ].join(' ')}
                             onClick={() => setPickedGif(g)}
                           >
@@ -539,7 +541,7 @@ export default function MemeBattleGame() {
               </div>
 
               {status === 'reveal' ? (
-                <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border bg-base p-3">
+                <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-[color:var(--gw-border)] bg-[color:var(--gw-panel-strong)] p-3">
                   {revealOrder.length === 0 ? (
                     <div className="py-10 text-center text-sm text-muted">No submissions yet.</div>
                   ) : (
@@ -551,7 +553,7 @@ export default function MemeBattleGame() {
                         <button
                           type="button"
                           onClick={() => setAutoReveal((v) => !v)}
-                          className="rounded-lg border border-border bg-surface px-2.5 py-1 text-xs font-semibold text-text hover:border-accent/40"
+                          className="gw-focus-ring rounded-lg border border-[color:var(--gw-border)] bg-[color:var(--gw-panel)] px-2.5 py-1 text-xs font-semibold text-text hover:border-[color:var(--gw-accent)]"
                         >
                           {autoReveal ? 'Auto: on' : 'Auto: off'}
                         </button>
@@ -595,7 +597,7 @@ export default function MemeBattleGame() {
                   )}
                 </div>
               ) : (
-                <div className="min-h-0 flex-1 overflow-auto rounded-2xl border border-border p-3">
+                <div className="min-h-0 flex-1 overflow-auto rounded-2xl border border-[color:var(--gw-border)] p-3">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {revealOrder.map((p, idx) => {
                       const sub = meme.submissions![p.id]
@@ -603,7 +605,10 @@ export default function MemeBattleGame() {
                       const votedFor = playerId ? myGifVote === p.id : false
                       const cantVoteSelf = playerId === p.id
                       return (
-                        <div key={p.id} className="relative overflow-hidden rounded-2xl border border-border bg-base">
+                        <div
+                          key={p.id}
+                          className="relative overflow-hidden rounded-2xl border border-[color:var(--gw-border)] bg-[color:var(--gw-panel)]"
+                        >
                           <div className="overflow-hidden rounded-xl">
                             <img
                               src={sub.gif.url}
@@ -718,7 +723,7 @@ export default function MemeBattleGame() {
           )}
         </div>
 
-        <div className="w-full rounded-2xl border border-border bg-surface p-4 lg:w-90 lg:flex-none">
+        <div className="gw-panel w-full rounded-2xl p-4 lg:w-90 lg:flex-none">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <div className="text-xs font-semibold uppercase tracking-wider text-muted">Players</div>
@@ -727,7 +732,7 @@ export default function MemeBattleGame() {
           </div>
 
           {status !== 'lobby' && (
-            <div className="mb-4 border-b border-border pb-4">
+            <div className="mb-4 border-b border-[color:var(--gw-border)] pb-4">
               <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
                 Total points
               </div>
@@ -738,7 +743,7 @@ export default function MemeBattleGame() {
                 {leaderboard.map((e, idx) => (
                   <div
                     key={e.id}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-border bg-base px-2.5 py-1.5 text-sm"
+                    className="flex items-center justify-between gap-2 rounded-lg border border-[color:var(--gw-border)] bg-[color:var(--gw-panel)] px-2.5 py-1.5 text-sm"
                   >
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="w-4 shrink-0 text-xs font-semibold text-muted">{idx + 1}</span>
@@ -760,7 +765,10 @@ export default function MemeBattleGame() {
               const gv = meme?.gifVotes?.[p.id]
               const pts = meme?.scores?.[p.id] ?? 0
               return (
-                <div key={p.id} className="rounded-xl border border-border bg-base px-3 py-2">
+                <div
+                  key={p.id}
+                  className="rounded-xl border border-[color:var(--gw-border)] bg-[color:var(--gw-panel)] px-3 py-2"
+                >
                   <div className="flex items-center gap-3">
                     <Avatar name={p.displayName} size="sm" />
                     <div className="min-w-0 flex-1">
