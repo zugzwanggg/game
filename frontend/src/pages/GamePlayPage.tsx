@@ -1,6 +1,7 @@
 import { Navigate, useParams } from 'react-router-dom'
 import GuessDrawingGame from '../games/drawing/GuessDrawingGame'
 import MemeBattleGame from '../games/meme/MemeBattleGame'
+import SpyGame from '../games/spy/SpyGame'
 
 export default function GamePlayPage() {
   const { gameId } = useParams()
@@ -17,6 +18,14 @@ export default function GamePlayPage() {
     return (
       <div className="flex min-h-0 flex-col bg-base h-dvh max-h-dvh overflow-y-auto overflow-x-hidden">
         <MemeBattleGame />
+      </div>
+    )
+  }
+
+  if (gameId === 'spy') {
+    return (
+      <div className="flex min-h-0 flex-col bg-base h-dvh max-h-dvh overflow-y-auto overflow-x-hidden">
+        <SpyGame />
       </div>
     )
   }

@@ -8,12 +8,14 @@ import type { RoomPlayer } from './rooms/types.js'
 import { normalizeGuess, pickRandomWord, toHint } from './games/drawing/words.js'
 import { startMemeMatch } from './games/meme/engine.js'
 import { sanitizeMemeGif } from './games/meme/sanitize.js'
+import { castSpyVote, requestEarlyVote, spyGuess, startSpyMatch } from './games/spy/engine.js'
 import { getCorsOrigins } from './corsOrigins.js'
 
 let io: Server | null = null
 
 const startedTurnByRoom = new Map<string, string>()
 const revealedTurnByRoom = new Map<string, string>()
+const startedSpyByRoom = new Map<string, number>()
 
 export function initSocket(httpServer: HttpServer): Server {
   io = new Server(httpServer, {
@@ -67,6 +69,32 @@ export function initSocket(httpServer: HttpServer): Server {
     let joinedCode: string | null = null
     let joinedPlayerId: string | null = null
 
+    const emitSpyRole = (room: any, targetPlayerId: string, sock: any, opts?: { force?: boolean }) => {
+      const sg = room.spyGame
+      if (!sg || room.game !== 'spy') return
+      if (!sg.matchId || sg.status === 'lobby') return
+      const last = (sock.data as any).lastSpyRoleMatchIdSent as number | undefined
+      if (!opts?.force && last === sg.matchId) return
+      ;(sock.data as any).lastSpyRoleMatchIdSent = sg.matchId
+      if (sg.spyPlayerId && targetPlayerId === sg.spyPlayerId) {
+        sock.emit('game:spy:role', { role: 'spy' })
+      } else {
+        sock.emit('game:spy:role', { role: 'agent', word: sg.word })
+      }
+    }
+
+    const emitSpyRolesToRoom = (code: string, room: any) => {
+      const sg = room.spyGame
+      if (!sg || room.game !== 'spy') return
+      if (!sg.matchId || sg.status === 'lobby') return
+      for (const s of io!.sockets.sockets.values()) {
+        if (!s.rooms?.has(code)) continue
+        const pid = (s.data as any).playerId as string | undefined
+        if (!pid) continue
+        emitSpyRole(room, pid, s)
+      }
+    }
+
     const emitRoomState = (code: string) => {
       const room = getRoom(code)
       if (!room) return
@@ -100,6 +128,20 @@ export function initSocket(httpServer: HttpServer): Server {
           ? Math.max(0, Math.ceil((mg.roundBreakEndsAt - now) / 1000))
           : 0
 
+      const sg = room.spyGame
+      const spyDiscussionSecLeft =
+        sg?.status === 'discussion' && sg.discussionEndsAt != null
+          ? Math.max(0, Math.ceil((sg.discussionEndsAt - now) / 1000))
+          : 0
+      const spyVoteSecLeft =
+        sg?.status === 'voting' && sg.votingEndsAt != null
+          ? Math.max(0, Math.ceil((sg.votingEndsAt - now) / 1000))
+          : 0
+      const spyGuessSecLeft =
+        sg?.status === 'spy_guess' && sg.spyGuessEndsAt != null
+          ? Math.max(0, Math.ceil((sg.spyGuessEndsAt - now) / 1000))
+          : 0
+
       io!.to(code).emit('room:state', {
         code: room.code,
         game: room.game,
@@ -109,6 +151,30 @@ export function initSocket(httpServer: HttpServer): Server {
         chat: room.chat.slice(-100),
         round: room.round,
         memeGame: mg,
+        spyGame: sg
+          ? sg.status === 'reveal'
+            ? {
+                status: sg.status,
+                matchId: sg.matchId,
+                // reveal payload
+                revealedSpyPlayerId: sg.revealedSpyPlayerId,
+                revealedWord: sg.revealedWord,
+                winner: sg.winner,
+                selectedPlayerId: sg.selectedPlayerId,
+                tie: sg.tie,
+                spyGuessedCorrectly: sg.spyGuessedCorrectly,
+                votes: sg.votes,
+              }
+            : {
+                status: sg.status,
+                matchId: sg.matchId,
+                discussionEndsAt: sg.discussionEndsAt,
+                votingEndsAt: sg.votingEndsAt,
+                spyGuessEndsAt: sg.spyGuessEndsAt,
+                earlyVoteYesCount: Object.keys(sg.earlyVoteYes ?? {}).length,
+                voteCount: Object.keys(sg.votes ?? {}).length,
+              }
+          : undefined,
         drawingGame: dg
           ? {
               status: dg.status,
@@ -132,6 +198,9 @@ export function initSocket(httpServer: HttpServer): Server {
           memeRevealSecLeft,
           memeLeaderboardSecLeft,
           memeRoundBreakSecLeft,
+          spyDiscussionSecLeft,
+          spyVoteSecLeft,
+          spyGuessSecLeft,
         },
       })
 
@@ -164,6 +233,16 @@ export function initSocket(httpServer: HttpServer): Server {
             io!.to(code).emit('game:drawing:reveal', { word: dg.word })
           }
         }
+      }
+
+      if (room.game === 'spy' && sg && sg.status !== 'lobby') {
+        const last = startedSpyByRoom.get(code) ?? 0
+        if (sg.matchId !== last) {
+          startedSpyByRoom.set(code, sg.matchId)
+          io!.to(code).emit('game:spy:started', { code, game: 'spy' as const })
+        }
+        // Private role delivery (safe to attempt every tick; per-socket dedup).
+        emitSpyRolesToRoom(code, room as any)
       }
     }
 
@@ -231,6 +310,16 @@ export function initSocket(httpServer: HttpServer): Server {
         ) {
           socket.emit('game:drawing:reveal', { word: room.drawingGame.word })
         }
+
+        // If Spy match is running, deliver private role info to the joining player.
+        if (
+          room.game === 'spy' &&
+          room.spyGame &&
+          room.spyGame.status !== 'lobby' &&
+          room.spyGame.matchId
+        ) {
+          emitSpyRole(room as any, playerId, socket as any)
+        }
       },
     )
 
@@ -296,6 +385,79 @@ export function initSocket(httpServer: HttpServer): Server {
       touchRoom(joinedCode)
       io!.to(joinedCode).emit('game:meme:started', { code: joinedCode, game: 'meme' as const })
       emitRoomState(joinedCode)
+    })
+
+    socket.on('game:spy:start', () => {
+      if (!joinedCode) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'spy' || !room.spyGame) return
+      const principal = (socket.data as any).principal as
+        | { kind: 'user' | 'guest'; id: string }
+        | undefined
+      if (!principal || principal.kind !== 'user' || principal.id !== room.createdByUserId) return
+      if (room.players.length < 3 || room.players.length > 10) return
+      room.chat = []
+      startSpyMatch(room, Date.now())
+      touchRoom(joinedCode)
+      io!.to(joinedCode).emit('chat:clear')
+      emitSpyRolesToRoom(joinedCode, room as any)
+      io!.to(joinedCode).emit('game:spy:started', { code: joinedCode, game: 'spy' as const })
+      emitRoomState(joinedCode)
+    })
+
+    socket.on('game:spy:request_vote', () => {
+      if (!joinedCode || !joinedPlayerId) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'spy' || !room.spyGame) return
+      const already = Boolean(room.spyGame.earlyVoteYes?.[joinedPlayerId])
+      requestEarlyVote(room, room.spyGame, joinedPlayerId, Date.now())
+      if (!already) {
+        const caller = room.players.find((p) => p.id === joinedPlayerId)
+        const name = caller?.displayName ?? 'Player'
+        const yes = room.players.filter((p) => room.spyGame!.earlyVoteYes?.[p.id]).length
+        const total = room.players.length
+        io!.to(joinedCode).emit('chat:message', {
+          id: crypto.randomUUID(),
+          author: 'Game',
+          text: `${name} called a vote (${yes}/${total})`,
+          ts: Date.now(),
+          variant: 'system',
+        })
+      }
+      touchRoom(joinedCode)
+      emitRoomState(joinedCode)
+    })
+
+    socket.on('game:spy:vote', (payload: { targetPlayerId?: string }) => {
+      if (!joinedCode || !joinedPlayerId) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'spy' || !room.spyGame) return
+      const target = String(payload?.targetPlayerId ?? '').trim()
+      if (!target) return
+      castSpyVote(room, room.spyGame, joinedPlayerId, target, Date.now())
+      touchRoom(joinedCode)
+      emitRoomState(joinedCode)
+    })
+
+    socket.on('game:spy:guess', (payload: { guess?: string }) => {
+      if (!joinedCode || !joinedPlayerId) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'spy' || !room.spyGame) return
+      const guess = String(payload?.guess ?? '').trim().slice(0, 60)
+      if (!guess) return
+      spyGuess(room, room.spyGame, joinedPlayerId, guess)
+      touchRoom(joinedCode)
+      emitRoomState(joinedCode)
+    })
+
+    socket.on('game:spy:role:request', () => {
+      if (!joinedCode) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'spy' || !room.spyGame) return
+      if (room.spyGame.status === 'lobby') return
+      const pid = joinedPlayerId ?? ((socket.data as any).playerId as string | undefined)
+      if (!pid) return
+      emitSpyRole(room as any, pid, socket as any, { force: true })
     })
 
     socket.on('game:meme:context_vote', (payload: { promptIndex?: number }) => {

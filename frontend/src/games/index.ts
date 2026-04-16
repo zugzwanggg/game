@@ -1,4 +1,4 @@
-import { ImageIcon, Pencil, type LucideIcon } from 'lucide-react'
+import { Eye, ImageIcon, Pencil, type LucideIcon } from 'lucide-react'
 
 export type GameDefinition = {
   id: string
@@ -44,6 +44,20 @@ export const GAMES: Record<string, GameDefinition> = {
     maxPlayers: 20,
     duration: '~10 min',
     tags: ['memes', 'voting', 'party'],
+  },
+  spy: {
+    id: 'spy',
+    label: 'Spy',
+    tagline: 'Blend in. Find the word. Don’t get caught.',
+    description:
+      'One player is the Spy and doesn’t know the secret word. Everyone else has the same word and must give hints without saying it. Then vote to catch the Spy — but if you tie, Spy wins instantly. If caught, the Spy gets one last guess.',
+    icon: Eye,
+    glowColor: 'rgba(255, 184, 0, 0.25)',
+    accentColor: '#FFB800',
+    players: '3–10 players',
+    maxPlayers: 10,
+    duration: '~5 min',
+    tags: ['social deduction', 'voice', 'party'],
   },
 }
 

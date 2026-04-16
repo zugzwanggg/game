@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import type { GameKey, RoomState } from './types.js'
 import { pickRandomWord, toHint } from '../games/drawing/words.js'
 import { MAX_MEME_ROUNDS, tickMemeGame } from '../games/meme/engine.js'
+import { tickSpyGame, SPY_MIN_PLAYERS } from '../games/spy/engine.js'
 
 function resetDrawingLobby(g: NonNullable<RoomState['drawingGame']>, room: RoomState) {
   g.status = 'lobby'
@@ -110,6 +111,21 @@ export function applyPlayerLeftRoom(room: RoomState) {
   if (room.game === 'drawing' && room.drawingGame) {
     repairDrawingGame(room, t, liveIds)
   }
+
+  if (room.game === 'spy' && room.spyGame) {
+    // Prune vote maps.
+    for (const k of Object.keys(room.spyGame.earlyVoteYes)) {
+      if (!liveIds.has(k)) delete room.spyGame.earlyVoteYes[k]
+    }
+    for (const k of Object.keys(room.spyGame.votes)) {
+      if (!liveIds.has(k)) delete room.spyGame.votes[k]
+    }
+    tickSpyGame(room, t)
+    // If not enough players, collapse to lobby.
+    if (room.players.length < SPY_MIN_PLAYERS) {
+      room.spyGame.status = 'lobby'
+    }
+  }
 }
 
 const ROOM_CODE_LEN = 6
@@ -192,6 +208,26 @@ export function createRoom(args: {
             roundBreakEndsAt: null,
           }
         : undefined,
+    spyGame:
+      args.game === 'spy'
+        ? {
+            matchId: 0,
+            status: 'lobby',
+            word: null,
+            spyPlayerId: null,
+            discussionEndsAt: null,
+            votingEndsAt: null,
+            spyGuessEndsAt: null,
+            earlyVoteYes: {},
+            votes: {},
+            revealedSpyPlayerId: null,
+            revealedWord: null,
+            winner: null,
+            selectedPlayerId: null,
+            tie: false,
+            spyGuessedCorrectly: null,
+          }
+        : undefined,
     round: {
       phase: 'drawing',
       endsAt: t + DRAW_SEC * 1000,
@@ -249,6 +285,11 @@ export function tickRoomTimers(code: string) {
 
   if (room.game === 'meme' && room.memeGame) {
     tickMemeGame(room, t)
+    return
+  }
+
+  if (room.game === 'spy' && room.spyGame) {
+    tickSpyGame(room, t)
     return
   }
 

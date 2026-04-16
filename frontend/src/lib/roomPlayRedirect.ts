@@ -3,6 +3,7 @@ export function matchInProgressFromSocketState(state: {
   game?: string
   drawingGame?: { status?: string } | null
   memeGame?: { status?: string } | null
+  spyGame?: { status?: string } | null
 }): boolean {
   const g = state.game
   if (g === 'drawing') {
@@ -13,15 +14,21 @@ export function matchInProgressFromSocketState(state: {
     const s = state.memeGame?.status
     return s != null && s !== 'lobby'
   }
+  if (g === 'spy') {
+    const s = state.spyGame?.status
+    return s != null && s !== 'lobby'
+  }
   // Fallback: some clients/pages may see a state snapshot before `game` is set.
   // Infer from game-specific state objects.
   const ds = state.drawingGame?.status
   if (ds != null && ds !== 'lobby') return true
   const ms = state.memeGame?.status
   if (ms != null && ms !== 'lobby') return true
+  const ss = state.spyGame?.status
+  if (ss != null && ss !== 'lobby') return true
   return false
 }
 
-export function playPathForRoom(roomCode: string, game: 'drawing' | 'meme') {
+export function playPathForRoom(roomCode: string, game: 'drawing' | 'meme' | 'spy') {
   return `/games/${game}/play?room=${encodeURIComponent(roomCode)}`
 }

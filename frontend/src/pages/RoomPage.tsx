@@ -45,7 +45,7 @@ export default function RoomPage() {
   }, [roomCode])
 
   const goToPlayIfMatch = useCallback(
-    (game: 'drawing' | 'meme') => {
+    (game: 'drawing' | 'meme' | 'spy') => {
       if (!roomCode || playRedirectDoneRef.current) return
       playRedirectDoneRef.current = true
       void navigate(playPathForRoom(roomCode, game), { replace: true })
@@ -111,8 +111,8 @@ export default function RoomPage() {
         const gRaw =
           (state.game as string | undefined) ??
           gameId ??
-          (state?.drawingGame ? 'drawing' : state?.memeGame ? 'meme' : undefined)
-        if (gRaw === 'drawing' || gRaw === 'meme') goToPlayIfMatch(gRaw)
+          (state?.drawingGame ? 'drawing' : state?.memeGame ? 'meme' : state?.spyGame ? 'spy' : undefined)
+        if (gRaw === 'drawing' || gRaw === 'meme' || gRaw === 'spy') goToPlayIfMatch(gRaw)
       }
 
       handlePlayersSnapshot(
@@ -129,9 +129,15 @@ export default function RoomPage() {
       if (payload?.game !== 'meme') return
       void navigate(`/games/meme/play?room=${encodeURIComponent(roomCode)}`)
     }
+    const onSpyStarted = (payload: { code?: string; game?: string }) => {
+      if (String(payload?.code ?? '').toUpperCase() !== roomCode.toUpperCase()) return
+      if (payload?.game !== 'spy') return
+      void navigate(`/games/spy/play?room=${encodeURIComponent(roomCode)}`)
+    }
     socket.on('room:state', onState)
     socket.on('game:drawing:started', onGameStarted)
     socket.on('game:meme:started', onMemeStarted)
+    socket.on('game:spy:started', onSpyStarted)
 
     if (!ready) return
     if (!principal) {
@@ -151,6 +157,7 @@ export default function RoomPage() {
       socket.off('room:state', onState)
       socket.off('game:drawing:started', onGameStarted)
       socket.off('game:meme:started', onMemeStarted)
+      socket.off('game:spy:started', onSpyStarted)
     }
   }, [roomCode, principal, ready, navigate, goToPlayIfMatch, handlePlayersSnapshot])
 
@@ -361,10 +368,37 @@ export default function RoomPage() {
               </p>
             )
           ) : (
-            <Button variant="teal" size="lg" className="w-full justify-center">
-              Start match
-              {/* TODO: socket.emit('room:start') */}
-            </Button>
+            game?.id === 'spy' ? (
+              isHost ? (
+                <Button
+                  variant="teal"
+                  size="lg"
+                  className="w-full justify-center"
+                  type="button"
+                  disabled={players.length < 3 || players.length > 10}
+                  onClick={() => {
+                    const socket = getSocket()
+                    if (!socket.connected) socket.connect()
+                    socket.emit('game:spy:start')
+                    void navigate(`/games/spy/play?room=${encodeURIComponent(roomCode ?? '')}`)
+                  }}
+                >
+                  {players.length < 3
+                    ? 'Need 3+ players'
+                    : players.length > 10
+                      ? 'Max 10 players'
+                      : 'Start match'}
+                </Button>
+              ) : (
+                <p className="text-center text-sm text-muted">
+                  Only the room host can start the match.
+                </p>
+              )
+            ) : (
+              <Button variant="teal" size="lg" className="w-full justify-center">
+                Start match
+              </Button>
+            )
           )}
         </div>
       </div>

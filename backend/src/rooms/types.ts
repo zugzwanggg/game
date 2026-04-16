@@ -1,4 +1,4 @@
-export type GameKey = 'drawing' | 'meme'
+export type GameKey = 'drawing' | 'meme' | 'spy'
 
 export type RoomPlayer = {
   id: string
@@ -66,6 +66,33 @@ export type RoomState = {
     revealEndsAt: number | null
     leaderboardEndsAt: number | null
     roundBreakEndsAt: number | null
+  }
+  spyGame?: {
+    matchId: number
+    status: 'lobby' | 'discussion' | 'voting' | 'spy_guess' | 'reveal'
+    /** The secret word for this round (never send in `room:state` during play). */
+    word: string | null
+    spyPlayerId: string | null
+    /** Discussion ends at (ms since epoch). */
+    discussionEndsAt: number | null
+    /** Voting ends at (ms since epoch). */
+    votingEndsAt: number | null
+    /** If Spy is caught, they have until this time to guess the word. */
+    spyGuessEndsAt: number | null
+    /** Who asked to start a vote early (must be >50% to trigger). */
+    earlyVoteYes: Record<string, boolean>
+    /** Anonymous votes: voter -> target. */
+    votes: Record<string, string>
+    /** Reveal payload (only set in reveal). */
+    revealedSpyPlayerId: string | null
+    revealedWord: string | null
+    winner: 'spy' | 'agents' | null
+    /** Who was selected by vote (if any). */
+    selectedPlayerId: string | null
+    /** Set when tie happens (spy wins instantly). */
+    tie: boolean
+    /** If Spy was caught, whether they guessed the word correctly. */
+    spyGuessedCorrectly: boolean | null
   }
   drawingGame?: {
     status: 'lobby' | 'playing' | 'reveal' | 'leaderboard'

@@ -12,6 +12,10 @@ function matchActive(room: RoomState): boolean {
     const m = room.memeGame
     return m != null && m.status !== 'lobby'
   }
+  if (room.game === 'spy') {
+    const s = room.spyGame
+    return s != null && s.status !== 'lobby'
+  }
   return false
 }
 

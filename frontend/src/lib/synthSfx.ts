@@ -64,3 +64,9 @@ export function playMemeSubmitSfx(): void {
 export function playMemeVoteSfx(): void {
   beep(740, 42, 0.1)
 }
+
+/** Spy: someone called an early vote. */
+export function playSpyCallVoteSfx(): void {
+  beep(560, 40, 0.1, 'square')
+  window.setTimeout(() => beep(780, 45, 0.1, 'sine'), 55)
+}
