@@ -87,3 +87,31 @@ export function playMafiaPrivatePopupSfx(): void {
   beep(520, 35, 0.09)
   window.setTimeout(() => beep(780, 38, 0.1), 55)
 }
+
+export function playLiarCardPlaySfx(): void {
+  beep(420, 55, 0.09, 'triangle')
+}
+
+export function playLiarCallSfx(): void {
+  beep(320, 60, 0.14, 'square')
+  window.setTimeout(() => beep(880, 90, 0.12, 'sawtooth'), 45)
+}
+
+export function playLiarFlipSfx(): void {
+  beep(600, 35, 0.08)
+  window.setTimeout(() => beep(900, 40, 0.09), 40)
+}
+
+export function playLiarSpinSfx(): void {
+  beep(180, 120, 0.06, 'sine')
+  window.setTimeout(() => beep(240, 100, 0.06, 'sine'), 70)
+}
+
+export function playLiarClickSfx(): void {
+  beep(1200, 25, 0.14, 'square')
+}
+
+export function playLiarBangSfx(): void {
+  beep(90, 220, 0.2, 'sawtooth')
+  window.setTimeout(() => beep(55, 350, 0.18, 'square'), 40)
+}

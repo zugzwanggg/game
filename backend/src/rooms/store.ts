@@ -4,6 +4,7 @@ import { pickRandomWord, toHint } from '../games/drawing/words.js'
 import { MAX_MEME_ROUNDS, tickMemeGame } from '../games/meme/engine.js'
 import { tickSpyGame, SPY_MIN_PLAYERS } from '../games/spy/engine.js'
 import { tickMafiaGame, pruneMafiaForPlayers, MAFIA_MIN } from '../games/mafia/engine.js'
+import { tickLiarGame, pruneLiarForPlayers } from '../games/liar/engine.js'
 
 function resetDrawingLobby(g: NonNullable<RoomState['drawingGame']>, room: RoomState) {
   g.status = 'lobby'
@@ -123,6 +124,17 @@ export function applyPlayerLeftRoom(room: RoomState) {
     }
   }
 
+  if (room.game === 'liar' && room.liarGame) {
+    pruneLiarForPlayers(room)
+    tickLiarGame(room, t)
+    if (room.players.length < 2) {
+      room.liarGame.status = 'lobby'
+      room.liarGame.hands = {}
+      room.liarGame.pile = []
+      room.liarGame.lastPlay = null
+    }
+  }
+
   if (room.game === 'spy' && room.spyGame) {
     // Prune vote maps.
     for (const k of Object.keys(room.spyGame.earlyVoteYes)) {
@@ -239,6 +251,27 @@ export function createRoom(args: {
             spyGuessedCorrectly: null,
           }
         : undefined,
+    liarGame:
+      args.game === 'liar'
+        ? {
+            matchId: 0,
+            status: 'lobby',
+            phase: 'between_rounds',
+            round: 0,
+            order: [],
+            turnIndex: 0,
+            hands: {},
+            pile: [],
+            lastPlay: null,
+            bluffEndsAt: null,
+            resolving: null,
+            shotResult: null,
+            revolvers: {},
+            stats: {},
+            winnerId: null,
+            log: [],
+          }
+        : undefined,
     mafiaGame:
       args.game === 'mafia'
         ? {
@@ -332,6 +365,11 @@ export function tickRoomTimers(code: string) {
 
   if (room.game === 'mafia' && room.mafiaGame) {
     tickMafiaGame(room, t)
+    return
+  }
+
+  if (room.game === 'liar' && room.liarGame) {
+    tickLiarGame(room, t)
     return
   }
 

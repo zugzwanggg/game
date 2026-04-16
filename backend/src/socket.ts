@@ -22,6 +22,14 @@ import {
   requestMafiaDaySkip,
   requestNightSkip,
 } from './games/mafia/engine.js'
+import {
+  getActiveLiarPlayerId,
+  LIAR_MAX_PLAYERS,
+  LIAR_MIN_PLAYERS,
+  startLiarMatch,
+  tryCallLiar,
+  tryPlayCards,
+} from './games/liar/engine.js'
 import { getCorsOrigins } from './corsOrigins.js'
 
 let io: Server | null = null
@@ -30,6 +38,7 @@ const startedTurnByRoom = new Map<string, string>()
 const revealedTurnByRoom = new Map<string, string>()
 const startedSpyByRoom = new Map<string, number>()
 const startedMafiaByRoom = new Map<string, number>()
+const startedLiarByRoom = new Map<string, number>()
 
 export function initSocket(httpServer: HttpServer): Server {
   io = new Server(httpServer, {
@@ -208,6 +217,12 @@ export function initSocket(httpServer: HttpServer): Server {
           ? Math.max(0, Math.ceil((mfg.resultsEndsAt - now) / 1000))
           : 0
 
+      const lg = room.liarGame
+      const liarBluffSecLeft =
+        lg?.phase === 'bluff' && lg.bluffEndsAt != null
+          ? Math.max(0, Math.ceil((lg.bluffEndsAt - now) / 1000))
+          : 0
+
       const mafiaGamePublic =
         mfg && room.game === 'mafia'
           ? mfg.status === 'results'
@@ -257,6 +272,59 @@ export function initSocket(httpServer: HttpServer): Server {
               }
           : undefined
 
+      const liarGamePublic =
+        lg && room.game === 'liar'
+          ? {
+              matchId: lg.matchId,
+              status: lg.status,
+              phase: lg.phase,
+              round: lg.round,
+              order: lg.order,
+              turnIndex: lg.turnIndex,
+              activePlayerId: lg.phase === 'turn' ? getActiveLiarPlayerId(lg) : null,
+              declarerId: lg.lastPlay?.playerId ?? null,
+              handSizes: Object.fromEntries(
+                room.players.map((p) => [p.id, lg.hands[p.id]?.length ?? 0]),
+              ),
+              pileCardCount: lg.pile.reduce((a, s) => a + s.cards.length, 0),
+              lastPlay: lg.lastPlay
+                ? {
+                    playerId: lg.lastPlay.playerId,
+                    playedCount: lg.lastPlay.cards.length,
+                    claimedRank: lg.lastPlay.claimedRank,
+                    claimedCount: lg.lastPlay.claimedCount,
+                  }
+                : null,
+              bluffEndsAt: lg.bluffEndsAt,
+              resolving: lg.resolving
+                ? {
+                    accuserId: lg.resolving.accuserId,
+                    wasLying: lg.resolving.wasLying,
+                    shooterId: lg.resolving.shooterId,
+                    revealedCards: lg.resolving.revealedCards,
+                    claimedRank: lg.resolving.claimedRank,
+                    claimedCount: lg.resolving.claimedCount,
+                    endsAt: lg.resolving.endsAt,
+                  }
+                : null,
+              shotResult: lg.shotResult,
+              revolvers: Object.fromEntries(
+                Object.entries(lg.revolvers).map(([id, r]) => [
+                  id,
+                  {
+                    pullCount: r.pullCount,
+                    eliminated: r.eliminated,
+                    immune: r.immune,
+                    pullHistory: [...r.pullHistory],
+                  },
+                ]),
+              ),
+              stats: { ...lg.stats },
+              winnerId: lg.winnerId,
+              log: lg.log.slice(-80),
+            }
+          : undefined
+
       const roomStateBase = {
         code: room.code,
         game: room.game,
@@ -267,6 +335,7 @@ export function initSocket(httpServer: HttpServer): Server {
         round: room.round,
         memeGame: mg,
         mafiaGame: mafiaGamePublic,
+        liarGame: liarGamePublic,
         spyGame: sg
           ? sg.status === 'reveal'
             ? {
@@ -321,6 +390,7 @@ export function initSocket(httpServer: HttpServer): Server {
           mafiaDaySecLeft,
           mafiaVoteSecLeft,
           mafiaResultsSecLeft,
+          liarBluffSecLeft,
         },
       }
 
@@ -399,6 +469,20 @@ export function initSocket(httpServer: HttpServer): Server {
           io!.to(code).emit('game:mafia:started', { code, game: 'mafia' as const })
         }
         emitMafiaRolesToRoom(code, room as any)
+      }
+
+      if (room.game === 'liar' && lg && lg.status !== 'lobby') {
+        const last = startedLiarByRoom.get(code) ?? 0
+        if (lg.matchId !== last) {
+          startedLiarByRoom.set(code, lg.matchId)
+          io!.to(code).emit('game:liar:started', { code, game: 'liar' as const })
+        }
+        for (const s of io!.sockets.sockets.values()) {
+          if (!s.rooms?.has(code)) continue
+          const pid = (s.data as any).playerId as string | undefined
+          if (!pid) continue
+          s.emit('game:liar:hand', { cards: lg.hands[pid] ?? [] })
+        }
       }
 
       if (room.game === 'mafia' && mfg && mfg.status === 'night') {
@@ -497,6 +581,14 @@ export function initSocket(httpServer: HttpServer): Server {
           room.mafiaGame.matchId
         ) {
           emitMafiaRole(room as any, playerId, socket as any)
+        }
+
+        if (
+          room.game === 'liar' &&
+          room.liarGame &&
+          room.liarGame.status !== 'lobby'
+        ) {
+          socket.emit('game:liar:hand', { cards: room.liarGame.hands[playerId] ?? [] })
         }
       },
     )
@@ -636,6 +728,49 @@ export function initSocket(httpServer: HttpServer): Server {
       const pid = joinedPlayerId ?? ((socket.data as any).playerId as string | undefined)
       if (!pid) return
       emitSpyRole(room as any, pid, socket as any, { force: true })
+    })
+
+    socket.on('game:liar:start', () => {
+      if (!joinedCode) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'liar' || !room.liarGame) return
+      const principal = (socket.data as any).principal as
+        | { kind: 'user' | 'guest'; id: string }
+        | undefined
+      if (!principal || principal.kind !== 'user' || principal.id !== room.createdByUserId) return
+      if (room.players.length < LIAR_MIN_PLAYERS || room.players.length > LIAR_MAX_PLAYERS) return
+      room.chat = []
+      startLiarMatch(room, Date.now())
+      touchRoom(joinedCode)
+      io!.to(joinedCode).emit('chat:clear')
+      io!.to(joinedCode).emit('game:liar:started', { code: joinedCode, game: 'liar' as const })
+      emitRoomState(joinedCode)
+    })
+
+    socket.on(
+      'game:liar:play',
+      (payload: { cardIds?: string[]; claimedRank?: string; claimedCount?: number }) => {
+        if (!joinedCode || !joinedPlayerId) return
+        const room = getRoom(joinedCode)
+        if (!room || room.game !== 'liar' || !room.liarGame) return
+        const ids = Array.isArray(payload?.cardIds) ? payload!.cardIds!.map((x) => String(x)) : []
+        const claimedRank = String(payload?.claimedRank ?? '')
+        const claimedCount = Number(payload?.claimedCount)
+        if (tryPlayCards(room, joinedPlayerId, ids, claimedRank, claimedCount, Date.now())) {
+          touchRoom(joinedCode)
+          emitRoomState(joinedCode)
+        }
+      },
+    )
+
+    socket.on('game:liar:call_liar', () => {
+      if (!joinedCode || !joinedPlayerId) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'liar' || !room.liarGame) return
+      if (tryCallLiar(room, joinedPlayerId, Date.now())) {
+        touchRoom(joinedCode)
+        emitRoomState(joinedCode)
+      }
     })
 
     socket.on('game:mafia:start', () => {
@@ -844,6 +979,7 @@ export function initSocket(httpServer: HttpServer): Server {
           revealedTurnByRoom.delete(code)
           startedSpyByRoom.delete(code)
           startedMafiaByRoom.delete(code)
+          startedLiarByRoom.delete(code)
         } else {
           applyPlayerLeftRoom(room)
           touchRoom(code)
@@ -989,6 +1125,7 @@ export function initSocket(httpServer: HttpServer): Server {
         revealedTurnByRoom.delete(code)
         startedSpyByRoom.delete(code)
         startedMafiaByRoom.delete(code)
+        startedLiarByRoom.delete(code)
       } else {
         applyPlayerLeftRoom(room)
         touchRoom(code)

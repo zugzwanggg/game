@@ -582,6 +582,20 @@ export default function MafiaGame() {
           >
             <ArrowLeft size={16} /> Back
           </Link>
+          {roomCode && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              onClick={() => {
+                leaveRoomSocket()
+                void navigate('/games')
+              }}
+            >
+              Quit room
+            </Button>
+          )}
           <div className="flex items-center gap-2.5">
             <div
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 shadow-inner"

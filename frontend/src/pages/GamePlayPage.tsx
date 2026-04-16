@@ -3,6 +3,7 @@ import GuessDrawingGame from '../games/drawing/GuessDrawingGame'
 import MemeBattleGame from '../games/meme/MemeBattleGame'
 import SpyGame from '../games/spy/SpyGame'
 import MafiaGame from '../games/mafia/MafiaGame'
+import LiarsRevolverGame from '../games/liar/LiarsRevolverGame'
 
 export default function GamePlayPage() {
   const { gameId } = useParams()
@@ -35,6 +36,14 @@ export default function GamePlayPage() {
     return (
       <div className="flex min-h-0 flex-col overflow-hidden bg-base h-dvh max-h-dvh">
         <MafiaGame />
+      </div>
+    )
+  }
+
+  if (gameId === 'liar') {
+    return (
+      <div className="flex min-h-0 flex-col overflow-hidden bg-base h-dvh max-h-dvh">
+        <LiarsRevolverGame />
       </div>
     )
   }

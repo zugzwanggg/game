@@ -1,4 +1,4 @@
-import { Eye, ImageIcon, Pencil, Skull, type LucideIcon } from 'lucide-react'
+import { Eye, ImageIcon, Pencil, Skull, Target, type LucideIcon } from 'lucide-react'
 
 export type GameDefinition = {
   id: string
@@ -58,6 +58,20 @@ export const GAMES: Record<string, GameDefinition> = {
     maxPlayers: 10,
     duration: '~5 min',
     tags: ['social deduction', 'voice', 'party'],
+  },
+  liar: {
+    id: 'liar',
+    label: "Liar's Revolver",
+    tagline: 'Bluff, call, survive.',
+    description:
+      'Play cards face down and say how many of which rank you claim (rank and count are yours to invent). Others can call your bluff. Wrong player spins the cylinder. Last one standing wins.',
+    icon: Target,
+    glowColor: 'rgba(251, 191, 36, 0.28)',
+    accentColor: '#FBBF24',
+    players: '2-6 players',
+    maxPlayers: 6,
+    duration: '~10 min',
+    tags: ['bluffing', 'party', 'cards'],
   },
   mafia: {
     id: 'mafia',

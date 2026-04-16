@@ -272,6 +272,20 @@ export default function SpyGame() {
           >
             <ArrowLeft size={16} /> Back
           </Link>
+          {roomCode && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              onClick={() => {
+                leaveRoomSocket()
+                void navigate('/games')
+              }}
+            >
+              Quit room
+            </Button>
+          )}
           <div className="flex items-center gap-2">
             <div className="text-sm font-semibold text-text">Spy</div>
             <div className="uppercase tracking-wider">

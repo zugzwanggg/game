@@ -1,0 +1,630 @@
+import { ArrowLeft, Crosshair } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import Avatar from '../../components/ui/Avatar'
+import Button from '../../components/ui/Button'
+import { RoomPresenceBanner } from '../../components/ui/RoomPresenceBanner'
+import { RoomVoiceDock } from '../../components/voice/RoomVoiceDock'
+import { useRoomPresenceNotification } from '../../hooks/useRoomPresenceNotification'
+import { joinRoom } from '../../lib/roomJoin'
+import { removeRecentRoom } from '../../lib/recentRooms'
+import { getSocket } from '../../lib/socket'
+import {
+  playLiarBangSfx,
+  playLiarCallSfx,
+  playLiarCardPlaySfx,
+  playLiarClickSfx,
+  playLiarFlipSfx,
+  playLiarSpinSfx,
+} from '../../lib/synthSfx'
+
+type LiarCard = {
+  id: string
+  rank: string
+  suit: 'S' | 'H' | 'D' | 'C'
+}
+
+const LIAR_RANKS = ['A', 'K', 'Q', 'J', '10'] as const
+
+type LiarPublic = {
+  matchId: number
+  status: 'lobby' | 'playing' | 'finished'
+  phase: 'turn' | 'bluff' | 'resolving' | 'between_rounds'
+  round: number
+  order: string[]
+  turnIndex: number
+  activePlayerId: string | null
+  declarerId: string | null
+  handSizes: Record<string, number>
+  pileCardCount: number
+  lastPlay: {
+    playerId: string
+    playedCount: number
+    claimedRank: string
+    claimedCount: number
+  } | null
+  bluffEndsAt: number | null
+  resolving: {
+    accuserId: string
+    wasLying: boolean
+    shooterId: string
+    revealedCards: LiarCard[]
+    claimedRank: string
+    claimedCount: number
+    endsAt: number
+  } | null
+  shotResult: {
+    playerId: string
+    outcome: 'click' | 'bang'
+    endsAt: number
+  } | null
+  revolvers: Record<
+    string,
+    {
+      pullCount: number
+      eliminated: boolean
+      immune: boolean
+      pullHistory: ('click' | 'bang')[]
+    }
+  >
+  stats: Record<
+    string,
+    {
+      bluffsDeclared: number
+      timesCaughtLying: number
+      successfulBluffs: number
+      wrongAccusations: number
+      pullsSurvived: number
+    }
+  >
+  winnerId: string | null
+  log: { ts: number; text: string }[]
+}
+
+function suitSymbol(s: LiarCard['suit']) {
+  switch (s) {
+    case 'H':
+    case 'D':
+      return s === 'H' ? '♥' : '♦'
+    default:
+      return s === 'S' ? '♠' : '♣'
+  }
+}
+
+function suitColor(s: LiarCard['suit']) {
+  return s === 'H' || s === 'D' ? 'text-rose-400' : 'text-slate-200'
+}
+
+function seatAngle(i: number, n: number) {
+  if (n <= 0) return 0
+  return -90 + (360 / n) * i
+}
+
+export default function LiarsRevolverGame() {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const roomCode = searchParams.get('room')
+  const isOnline = Boolean(roomCode)
+
+  const [playerId, setPlayerId] = useState<string | null>(null)
+  const [players, setPlayers] = useState<{ id: string; displayName: string }[]>([])
+  const [createdByUserId, setCreatedByUserId] = useState<string | null>(null)
+  const [liar, setLiar] = useState<LiarPublic | null>(null)
+  const [myHand, setMyHand] = useState<LiarCard[]>([])
+  const [timers, setTimers] = useState<{ liarBluffSecLeft?: number }>({})
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [claimedRank, setClaimedRank] = useState<string>('A')
+  const [claimedCount, setClaimedCount] = useState<1 | 2 | 3>(1)
+  const [shake, setShake] = useState(false)
+  const [flash, setFlash] = useState<'bang' | 'click' | null>(null)
+  const lastShotRef = useRef<string | null>(null)
+  const lastResolveKeyRef = useRef<string | null>(null)
+
+  const backTarget = '/games/liar'
+
+  const { payload: presencePayload, handlePlayersSnapshot, dismiss: dismissPresence } =
+    useRoomPresenceNotification(isOnline && roomCode ? roomCode : null)
+
+  const nameById = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const p of players) m.set(p.id, p.displayName)
+    return m
+  }, [players])
+
+  const alivePlayers = useMemo(() => {
+    if (!liar) return players
+    return players.filter((p) => !liar.revolvers[p.id]?.eliminated)
+  }, [players, liar])
+
+  /** After the match ends, show every seat (winner + eliminated). */
+  const tablePlayers = liar?.status === 'finished' ? players : alivePlayers
+
+  const isHost = Boolean(playerId && createdByUserId && playerId === createdByUserId)
+
+  const leaveRoomSocket = () => {
+    if (!roomCode) return
+    const socket = getSocket()
+    if (socket.connected) socket.emit('room:leave')
+    removeRecentRoom(roomCode)
+  }
+
+  const toggleCard = useCallback((id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else {
+        if (next.size >= 3) return prev
+        next.add(id)
+      }
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!isOnline || !roomCode) return
+    const socket = getSocket()
+    if (!socket.connected) socket.connect()
+
+    void joinRoom(roomCode).then(({ player }) => {
+      if (player?.id) setPlayerId(String(player.id))
+    })
+
+    const onState = (state: any) => {
+      if (String(state?.code ?? '').toUpperCase() !== roomCode.toUpperCase()) return
+      if (Array.isArray(state?.players)) {
+        const next = (state.players as any[]).map((p) => ({
+          id: String(p.id),
+          displayName: String(p.displayName ?? 'Player'),
+        }))
+        setPlayers(next)
+        handlePlayersSnapshot(next)
+      }
+      if (typeof state.createdByUserId === 'string') setCreatedByUserId(state.createdByUserId)
+      setLiar(state.liarGame ?? null)
+      setTimers({ liarBluffSecLeft: state.timers?.liarBluffSecLeft ?? 0 })
+    }
+
+    const onHand = (payload: { cards?: LiarCard[] }) => {
+      setMyHand(Array.isArray(payload?.cards) ? payload.cards : [])
+    }
+
+    socket.on('room:state', onState)
+    socket.on('game:liar:hand', onHand)
+    return () => {
+      socket.off('room:state', onState)
+      socket.off('game:liar:hand', onHand)
+    }
+  }, [isOnline, roomCode, handlePlayersSnapshot])
+
+  useEffect(() => {
+    const r = liar?.resolving
+    if (!r) return
+    const key = `${r.accuserId}-${r.endsAt}`
+    if (lastResolveKeyRef.current === key) return
+    lastResolveKeyRef.current = key
+    playLiarFlipSfx()
+  }, [liar?.resolving])
+
+  useEffect(() => {
+    const sr = liar?.shotResult
+    if (!sr) return
+    const key = `${sr.playerId}-${sr.outcome}-${sr.endsAt}`
+    if (lastShotRef.current === key) return
+    lastShotRef.current = key
+    playLiarSpinSfx()
+    window.setTimeout(() => {
+      if (sr.outcome === 'bang') {
+        playLiarBangSfx()
+        setFlash('bang')
+        setShake(true)
+        window.setTimeout(() => setShake(false), 600)
+        window.setTimeout(() => setFlash(null), 900)
+      } else {
+        playLiarClickSfx()
+        setFlash('click')
+        window.setTimeout(() => setFlash(null), 500)
+      }
+    }, 180)
+  }, [liar?.shotResult])
+
+  const bluffSec = timers.liarBluffSecLeft ?? 0
+  const canPlay =
+    liar?.status === 'playing' &&
+    liar.phase === 'turn' &&
+    playerId &&
+    liar.activePlayerId === playerId
+
+  const canCall =
+    liar?.status === 'playing' &&
+    liar.phase === 'bluff' &&
+    playerId &&
+    liar.lastPlay &&
+    liar.lastPlay.playerId !== playerId &&
+    bluffSec > 0
+
+  const playCards = () => {
+    if (!canPlay || selected.size < 1) return
+    const socket = getSocket()
+    playLiarCardPlaySfx()
+    socket.emit('game:liar:play', {
+      cardIds: [...selected],
+      claimedRank,
+      claimedCount,
+    })
+    setSelected(new Set())
+  }
+
+  const callLiar = () => {
+    if (!canCall) return
+    const socket = getSocket()
+    playLiarCallSfx()
+    socket.emit('game:liar:call_liar')
+  }
+
+  const n = Math.max(tablePlayers.length, 1)
+
+  const startNewMatch = () => {
+    if (!isHost) return
+    const socket = getSocket()
+    if (!socket.connected) socket.connect()
+    socket.emit('game:liar:start')
+  }
+
+  return (
+    <div
+      className={`relative flex min-h-0 flex-1 flex-col overflow-hidden bg-base ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}
+    >
+      <style>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          20% { transform: translateX(-6px); }
+          40% { transform: translateX(6px); }
+          60% { transform: translateX(-4px); }
+          80% { transform: translateX(4px); }
+        }
+      `}</style>
+      {flash === 'bang' && (
+        <div className="pointer-events-none fixed inset-0 z-200 bg-red-600/35 mix-blend-screen" />
+      )}
+      {flash === 'click' && (
+        <div className="pointer-events-none fixed inset-0 z-200 bg-amber-400/15" />
+      )}
+
+      <RoomPresenceBanner
+        message={presencePayload?.text ?? null}
+        kind={presencePayload?.kind ?? null}
+        onDismiss={dismissPresence}
+      />
+
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Link
+            to={backTarget}
+            className="flex items-center gap-2 text-sm text-muted hover:text-text"
+            onClick={(e) => {
+              if (roomCode) {
+                e.preventDefault()
+                leaveRoomSocket()
+                void navigate(backTarget)
+              }
+            }}
+          >
+            <ArrowLeft size={16} /> Games
+          </Link>
+          {roomCode && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              onClick={() => {
+                leaveRoomSocket()
+                void navigate('/games')
+              }}
+            >
+              Quit room
+            </Button>
+          )}
+          {roomCode && (
+            <span className="inline-flex items-center rounded-full border border-border bg-white/5 px-2.5 py-0.5 font-mono text-[11px] font-medium text-muted">
+              {roomCode}
+            </span>
+          )}
+        </div>
+        {liar?.status === 'playing' && (
+          <div className="text-right text-xs text-muted">
+            Round {liar.round} · declare any rank and count on your turn
+          </div>
+        )}
+      </div>
+
+      {liar?.status === 'finished' && liar.winnerId && (
+        <div className="flex shrink-0 flex-col items-stretch gap-3 border-b border-border bg-card/90 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted">Winner</p>
+            <p className="text-lg font-extrabold text-text">
+              {nameById.get(liar.winnerId) ?? 'Player'}
+            </p>
+          </div>
+          {isHost && (
+            <Button type="button" variant="teal" size="md" className="shrink-0" onClick={startNewMatch}>
+              Start new match
+            </Button>
+          )}
+        </div>
+      )}
+
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 lg:flex-row lg:gap-4 lg:p-4">
+        <section className="relative flex min-h-[320px] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-surface/80 p-3 lg:min-h-0">
+          <div className="relative mx-auto mb-2 h-[min(52vh,520px)] w-full max-w-[640px]">
+            {/* Table */}
+            <div className="absolute inset-[18%] rounded-full border-2 border-border/80 bg-base/90 shadow-[inset_0_0_40px_rgba(0,0,0,0.35)]" />
+
+            {tablePlayers.map((p, i) => {
+              const ang = seatAngle(i, n)
+              const rad = (ang * Math.PI) / 180
+              const r = 44
+              const x = 50 + r * Math.cos(rad)
+              const y = 50 + r * Math.sin(rad)
+              const rev = liar?.revolvers[p.id]
+              const isMe = p.id === playerId
+              const isTurn = liar?.activePlayerId === p.id
+              const isDecl = liar?.declarerId === p.id && liar?.phase === 'bluff'
+
+              return (
+                <div
+                  key={p.id}
+                  className="absolute z-10 flex w-[130px] max-w-[34vw] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
+                  style={{ left: `${x}%`, top: `${y}%` }}
+                >
+                  <div
+                    className={`flex w-full flex-col items-center rounded-xl border px-2 py-2 text-center ${
+                      rev?.eliminated
+                        ? 'border-border/40 bg-black/40 opacity-50'
+                        : isTurn || isDecl
+                          ? 'border-accent/60 bg-accent/10'
+                          : 'border-border bg-card'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1">
+                      <Avatar name={p.displayName} size="sm" />
+                      <span className="max-w-[7rem] truncate text-xs font-semibold text-text">
+                        {p.displayName}
+                        {isMe ? ' (you)' : ''}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-1 text-[10px] text-muted">
+                      <Crosshair size={12} className="shrink-0" />
+                      {rev?.eliminated ? (
+                        <span className="text-rose-400">Out</span>
+                      ) : (
+                        <span>
+                          {rev?.pullCount ?? 0} / 6 pulls
+                          {rev?.immune ? ' · immune' : ''}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 flex gap-0.5">
+                      {Array.from({ length: 6 }).map((_, ci) => {
+                        const tail = rev?.pullHistory.slice(-6) ?? []
+                        const h = tail[ci]
+                        return (
+                          <span
+                            key={ci}
+                            className={`h-2 w-2 rounded-full ${
+                              h === 'bang'
+                                ? 'bg-red-500'
+                                : h === 'click'
+                                  ? 'bg-amber-400'
+                                  : 'bg-zinc-700'
+                            }`}
+                            title={h ?? 'empty'}
+                          />
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Center pile */}
+            <div className="absolute left-1/2 top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2">
+              <div className="relative flex h-24 w-20 items-center justify-center rounded-lg border border-border bg-card shadow-lg">
+                <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-accent/25 to-fuchsia-500/10" />
+                <span className="relative text-3xl font-black text-text/90">
+                  {liar?.pileCardCount ?? 0}
+                </span>
+                <span className="absolute bottom-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                  pile
+                </span>
+              </div>
+
+              {liar?.phase === 'bluff' && liar.lastPlay && (
+                <div className="max-w-[min(260px,90vw)] rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-center text-xs text-amber-50">
+                  <p className="font-semibold">
+                    {nameById.get(liar.lastPlay.playerId) ?? 'Player'} claims{' '}
+                    <span className="text-amber-200">
+                      {liar.lastPlay.claimedCount} × {liar.lastPlay.claimedRank}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-[10px] text-amber-100/90">
+                    Bluff window: {bluffSec}s · played {liar.lastPlay.playedCount} card
+                    {liar.lastPlay.playedCount === 1 ? '' : 's'} face down
+                  </p>
+                </div>
+              )}
+
+              {liar?.resolving && (
+                <div className="max-w-[220px] rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-center text-xs text-sky-50">
+                  <p className="mb-1 text-[10px] text-sky-200/90">
+                    Claimed {liar.resolving.claimedCount} × {liar.resolving.claimedRank}
+                  </p>
+                  <p className="mb-2 font-semibold">
+                    {liar.resolving.wasLying ? 'Caught lying!' : 'Wrong accusation!'}
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-1">
+                    {liar.resolving.revealedCards.map((c) => (
+                      <span
+                        key={c.id}
+                        className={`rounded border border-border bg-base px-2 py-1 font-mono text-sm font-bold ${suitColor(c.suit)}`}
+                      >
+                        {c.rank}
+                        {suitSymbol(c.suit)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {liar?.shotResult && (
+                <div
+                  className={`rounded-lg px-3 py-2 text-center text-sm font-bold ${
+                    liar.shotResult.outcome === 'bang'
+                      ? 'bg-red-600/30 text-red-100'
+                      : 'bg-zinc-800/80 text-teal-200'
+                  }`}
+                >
+                  {liar.shotResult.outcome === 'bang' ? 'BANG' : 'CLICK'} ·{' '}
+                  {nameById.get(liar.shotResult.playerId) ?? 'Player'}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* My hand */}
+          {playerId && liar?.status === 'playing' && !liar.revolvers[playerId]?.eliminated && (
+            <div className="mt-auto shrink-0 border-t border-border pt-3">
+              <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-wider text-muted">
+                Your hand · pick cards to play face down, then choose what you claim out loud
+              </p>
+              <div className="mb-3 flex flex-col items-center gap-2 sm:flex-row sm:justify-center sm:gap-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-center text-[10px] font-semibold uppercase text-muted">Claim rank</span>
+                  <div className="flex flex-wrap justify-center gap-1">
+                    {LIAR_RANKS.map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        disabled={!canPlay}
+                        onClick={() => canPlay && setClaimedRank(r)}
+                        className={`rounded-lg border px-2.5 py-1.5 text-sm font-bold transition-colors ${
+                          claimedRank === r
+                            ? 'border-accent bg-accent/25 text-text'
+                            : 'border-border bg-card text-muted hover:border-accent/40'
+                        } ${!canPlay ? 'opacity-50' : ''}`}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-center text-[10px] font-semibold uppercase text-muted">Claim count</span>
+                  <div className="flex justify-center gap-1">
+                    {([1, 2, 3] as const).map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        disabled={!canPlay}
+                        onClick={() => canPlay && setClaimedCount(c)}
+                        className={`rounded-lg border px-3 py-1.5 text-sm font-bold transition-colors ${
+                          claimedCount === c
+                            ? 'border-accent bg-accent/25 text-text'
+                            : 'border-border bg-card text-muted hover:border-accent/40'
+                        } ${!canPlay ? 'opacity-50' : ''}`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap justify-center gap-2">
+                {myHand.map((c) => {
+                  const on = selected.has(c.id)
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      disabled={!canPlay}
+                      onClick={() => canPlay && toggleCard(c.id)}
+                      className={`relative rounded-lg border px-3 py-3 font-mono text-lg font-bold transition-all ${
+                        on
+                          ? 'border-accent bg-accent/20 ring-2 ring-accent/50'
+                          : 'border-border bg-card hover:border-accent/40'
+                      } ${!canPlay ? 'cursor-not-allowed opacity-60' : ''} ${suitColor(c.suit)}`}
+                    >
+                      <span className="block text-2xl leading-none">{c.rank}</span>
+                      <span className="text-sm">{suitSymbol(c.suit)}</span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  disabled={!canPlay || selected.size < 1 || selected.size > 3}
+                  onClick={playCards}
+                  className="min-w-[8rem]"
+                >
+                  Play {selected.size > 0 ? `${selected.size} ` : ''}card
+                  {selected.size === 1 ? '' : 's'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="teal"
+                  size="md"
+                  disabled={!canCall}
+                  onClick={callLiar}
+                  className="min-w-[8rem]"
+                >
+                  Call Liar!
+                </Button>
+              </div>
+              {canPlay && (
+                <p className="mt-2 text-center text-xs text-muted">
+                  Your claim ({claimedCount} × {claimedRank}) can differ from how many cards you select. Bluffing is
+                  allowed. Cards stay hidden until someone calls.
+                </p>
+              )}
+              {canCall && liar.lastPlay && (
+                <p className="mt-2 text-center text-xs text-amber-200/90">
+                  They claim {liar.lastPlay.claimedCount} × {liar.lastPlay.claimedRank}. Challenge{' '}
+                  {nameById.get(liar.lastPlay.playerId) ?? 'player'} before time runs out.
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+
+        <aside className="flex max-h-[40vh] min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-card lg:max-h-none lg:w-[300px]">
+          <div className="border-b border-border px-3 py-2 text-sm font-semibold text-text">Log</div>
+          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2 text-xs text-muted">
+            {(liar?.log ?? []).map((e, i) => (
+              <p key={`${e.ts}-${i}`} className="leading-snug">
+                {e.text}
+              </p>
+            ))}
+            {(!liar?.log || liar.log.length === 0) && (
+              <p className="text-[11px] text-muted/80">Events appear here as you play.</p>
+            )}
+          </div>
+        </aside>
+      </div>
+
+      {roomCode && (
+        <div className="shrink-0 border-t border-border px-3 py-2">
+          <RoomVoiceDock
+            roomCode={roomCode}
+            myPlayerId={playerId}
+            players={players.map((p) => ({ id: p.id, displayName: p.displayName }))}
+          />
+        </div>
+      )}
+    </div>
+  )
+}

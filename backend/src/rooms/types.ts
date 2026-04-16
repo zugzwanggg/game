@@ -1,4 +1,6 @@
-export type GameKey = 'drawing' | 'meme' | 'spy' | 'mafia'
+import type { LiarGameState } from '../games/liar/types.js'
+
+export type GameKey = 'drawing' | 'meme' | 'spy' | 'mafia' | 'liar'
 
 export type MafiaRole = 'mafia' | 'town' | 'doctor' | 'detective'
 
@@ -96,6 +98,7 @@ export type RoomState = {
     /** If Spy was caught, whether they guessed the word correctly. */
     spyGuessedCorrectly: boolean | null
   }
+  liarGame?: LiarGameState
   mafiaGame?: {
     matchId: number
     round: number
