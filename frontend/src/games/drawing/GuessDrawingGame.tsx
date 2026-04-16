@@ -638,7 +638,7 @@ export default function GuessDrawingGame() {
   const backTarget = '/games/drawing'
 
   return (
-    <div className="relative flex flex-1 flex-col px-4 py-4 sm:px-6 sm:py-5 lg:min-h-0 lg:overflow-hidden gw-enter">
+    <div className="relative flex flex-1 flex-col px-4 py-4 sm:px-6 sm:py-5 lg:min-h-0 lg:overflow-hidden">
       <RoomPresenceBanner
         message={presencePayload?.text ?? null}
         kind={presencePayload?.kind ?? null}
@@ -655,7 +655,7 @@ export default function GuessDrawingGame() {
             }
             void navigate(backTarget)
           }}
-          className="gw-focus-ring inline-flex items-center gap-2 rounded-xl border border-[color:var(--gw-border)] bg-[color:var(--gw-panel)] px-3 py-2 text-sm text-muted shadow-card transition-all hover:-translate-y-0.5 hover:text-text hover:shadow-[0_0_0_1px_var(--gw-border),0_14px_50px_rgba(0,0,0,0.35)]"
+          className="flex items-center gap-2 text-sm text-muted transition-colors hover:text-text"
         >
           <ArrowLeft size={15} /> Back
         </button>
@@ -695,7 +695,7 @@ export default function GuessDrawingGame() {
             players={voicePlayers}
           />
         ) : (
-          <div className="gw-panel rounded-xl px-3 py-2.5 text-sm text-muted">
+          <div className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-muted">
             Room voice is available when you play online in a shared room.
           </div>
         )}
@@ -815,7 +815,7 @@ export default function GuessDrawingGame() {
 
           <div
             ref={wrapRef}
-            className={`relative min-h-70 flex-1 overflow-hidden rounded-2xl border border-[color:var(--gw-border)] bg-[color:var(--gw-panel-strong)] shadow-[0_0_0_1px_var(--gw-border),0_18px_70px_rgba(0,0,0,0.45)] sm:min-h-90 ${
+            className={`relative min-h-70 flex-1 overflow-hidden rounded-2xl border border-border bg-surface sm:min-h-90 ${
               role === 'drawer' &&
               !roundSolved &&
               drawerTurnPhase === 'drawing'
@@ -883,8 +883,8 @@ export default function GuessDrawingGame() {
           </div>
         </section>
 
-        <section className="gw-panel flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl lg:col-span-2">
-          <div className="border-b border-[color:var(--gw-border)] px-4 py-3">
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card lg:col-span-2">
+          <div className="border-b border-border px-4 py-3">
             <h2 className="text-sm font-semibold text-text">Guesses</h2>
             <p className="text-xs text-muted">Chat is for guesses only (UI demo).</p>
           </div>
@@ -895,10 +895,10 @@ export default function GuessDrawingGame() {
                   key={m.id}
                   className={`rounded-lg px-3 py-2 text-sm ${
                     m.variant === 'system'
-                      ? 'border border-[color:var(--gw-border)] bg-[color:var(--gw-panel)] text-muted'
+                      ? 'border border-border/60 bg-surface/80 text-muted'
                       : m.variant === 'correct'
                         ? 'border border-teal/40 bg-teal/15 font-semibold text-teal'
-                        : 'bg-[color:var(--gw-panel)] text-text'
+                        : 'bg-surface text-text'
                   }`}
                 >
                   <span className="text-xs font-semibold text-muted">
@@ -910,7 +910,7 @@ export default function GuessDrawingGame() {
             </div>
             <form
               onSubmit={sendGuess}
-              className="border-t border-[color:var(--gw-border)] p-3"
+              className="border-t border-border p-3"
             >
               {role === 'guesser' && !roundSolved && gamePhase === 'playing' ? (
                 <div className="flex gap-2">
@@ -918,7 +918,7 @@ export default function GuessDrawingGame() {
                     value={guessInput}
                     onChange={(e) => setGuessInput(e.target.value)}
                     placeholder="Type your guess…"
-                    className="gw-focus-ring min-w-0 flex-1 rounded-xl border border-[color:var(--gw-border)] bg-[color:var(--gw-panel)] px-3 py-2.5 text-sm text-text outline-none placeholder:text-muted focus:border-[color:var(--gw-accent)]"
+                    className="min-w-0 flex-1 rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none placeholder:text-muted focus:border-accent/60"
                     autoComplete="off"
                   />
                   <Button
