@@ -30,13 +30,6 @@
   border-radius: 3px;
 }
 
-.gradient-text {
-  background: linear-gradient(135deg, #7b61ff 0%, #e040fb 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
 .glass {
   background: rgba(26, 31, 58, 0.6);
   backdrop-filter: blur(12px);

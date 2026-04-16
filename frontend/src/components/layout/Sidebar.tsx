@@ -203,9 +203,9 @@ export default function Sidebar({ mobileOpen = true, onRequestClose }: SidebarPr
 
             <div className="space-y-3 rounded-xl bg-card p-4">
               {[
-                { label: 'Games played', value: principal?.kind === 'user' ? String(stats?.gamesPlayed ?? '—') : '12' },
-                { label: 'Total wins', value: principal?.kind === 'user' ? String(stats?.wins ?? '—') : '7' },
-                { label: 'Best score', value: principal?.kind === 'user' ? String(stats?.bestScore ?? '—') : '1,240' },
+                { label: 'Games played', value: principal?.kind === 'user' ? String(stats?.gamesPlayed ?? '-') : '12' },
+                { label: 'Total wins', value: principal?.kind === 'user' ? String(stats?.wins ?? '-') : '7' },
+                { label: 'Best score', value: principal?.kind === 'user' ? String(stats?.bestScore ?? '-') : '1,240' },
               ].map((stat) => (
                 <div
                   key={stat.label}

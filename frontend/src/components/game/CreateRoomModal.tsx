@@ -62,7 +62,7 @@ export function CreateRoomModal({
               Create a room
             </h2>
             <p className="mt-1 text-sm text-muted">
-              {gameTitle} — choose who can find this lobby.
+              {gameTitle}: who can find this lobby?
             </p>
           </div>
           <button

@@ -680,7 +680,7 @@ export default function MafiaGame() {
             <div className="flex min-h-full flex-1 flex-col items-center justify-center py-8 text-center">
               <div className="mb-2 text-lg font-semibold text-text">Mafia</div>
               <div className="mb-6 max-w-md text-sm text-muted">
-                5–12 players. Mafia eliminates at night; town debates by day and votes out suspects. When Mafia
+                5-12 players. Mafia eliminates at night; town debates by day and votes out suspects. When Mafia
                 reach parity with town, Mafia wins.
               </div>
               {isHost ? (
@@ -692,7 +692,7 @@ export default function MafiaGame() {
                   onClick={startMatch}
                   className="justify-center"
                 >
-                  {!minPlayersMet ? 'Need 5–12 players' : 'Start game'}
+                  {!minPlayersMet ? 'Need 5-12 players' : 'Start game'}
                 </Button>
               ) : (
                 <div className="text-sm text-muted">Waiting for the host to start…</div>
@@ -710,7 +710,7 @@ export default function MafiaGame() {
                     Teammates:{' '}
                     {role.teammateIds.length
                       ? role.teammateIds.map((id) => nameById.get(id) ?? id).join(', ')
-                      : '—'}
+                      : '-'}
                   </div>
                 </div>
               ) : role?.role === 'doctor' ? (
@@ -740,7 +740,7 @@ export default function MafiaGame() {
               <p className="shrink-0 text-sm text-muted">
                 Chat is closed at night for most roles; the Detective can still chat while choosing an action.
                 Mafia: agree on a kill (vote first, then you can skip). Doctor & Detective: use your actions or
-                tap Skip night — the night only ends early when every player with a night role has agreed to
+                tap Skip night. The night only ends early when every player with a night role has agreed to
                 skip.
               </p>
 
@@ -781,9 +781,9 @@ export default function MafiaGame() {
                         Skip night:{' '}
                         <span className="font-semibold text-text">{mafia.nightSkipYesCount ?? 0}</span> /{' '}
                         <span className="font-semibold text-text">
-                          {mafia.nightActorsRequiredCount ?? '—'}
+                          {mafia.nightActorsRequiredCount ?? '-'}
                         </span>{' '}
-                        ready — every Mafia (kill vote first), Doctor, and Detective must agree.
+                        ready. Every Mafia (kill vote first), Doctor, and Detective must agree.
                       </div>
                       <Button
                         type="button"
@@ -835,7 +835,7 @@ export default function MafiaGame() {
                                 <span className="block truncate text-sm font-semibold text-text">{p.displayName}</span>
                                 <span className="text-xs text-muted">
                                   {blocked
-                                    ? 'Protected last night — pick someone else'
+                                    ? 'Protected last night. Pick someone else'
                                     : active
                                       ? 'Your protection'
                                       : 'Tap to protect'}
@@ -851,9 +851,9 @@ export default function MafiaGame() {
                           Skip night:{' '}
                           <span className="font-semibold text-text">{mafia.nightSkipYesCount ?? 0}</span> /{' '}
                           <span className="font-semibold text-text">
-                            {mafia.nightActorsRequiredCount ?? '—'}
+                            {mafia.nightActorsRequiredCount ?? '-'}
                           </span>{' '}
-                          ready — everyone with a night role must agree (you can skip if you&apos;re fine ending now).
+                          ready. Everyone with a night role must agree (you can skip if you&apos;re fine ending now).
                         </div>
                         <Button
                           type="button"
@@ -874,7 +874,7 @@ export default function MafiaGame() {
                 <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
                   <div className="shrink-0 text-xs font-semibold uppercase text-muted">Investigate or kill</div>
                   <p className="shrink-0 mb-1 text-sm text-muted">
-                    Choose <span className="font-medium text-text">Check</span> to investigate — you learn their role
+                    Choose <span className="font-medium text-text">Check</span> to investigate. You learn their role
                     at dawn, not immediately. Or use <span className="font-medium text-rose-300">Kill</span> to try to
                     eliminate them at night (Doctor can still protect). You get{' '}
                     <span className="font-medium text-text">one</span> action per night (check or kill). You can use
@@ -930,8 +930,8 @@ export default function MafiaGame() {
                             Checking{' '}
                             <span className="font-semibold text-text">
                               {nameById.get(detectiveCheckTargetId) ?? 'player'}
-                            </span>{' '}
-                            — you&apos;ll learn their role at dawn.
+                            </span>
+                            . You&apos;ll learn their role at dawn.
                           </div>
                         )}
                         </div>
@@ -941,9 +941,9 @@ export default function MafiaGame() {
                           Skip night:{' '}
                           <span className="font-semibold text-text">{mafia.nightSkipYesCount ?? 0}</span> /{' '}
                           <span className="font-semibold text-text">
-                            {mafia.nightActorsRequiredCount ?? '—'}
+                            {mafia.nightActorsRequiredCount ?? '-'}
                           </span>{' '}
-                          ready — everyone with a night role must agree (you can skip if you&apos;re fine ending now).
+                          ready. Everyone with a night role must agree (you can skip if you&apos;re fine ending now).
                         </div>
                         <Button
                           type="button"
@@ -961,7 +961,7 @@ export default function MafiaGame() {
               )}
 
               {role?.role === 'town' && imAlive && (
-                <div className="text-sm text-muted">Wait for morning — night actions are hidden from town.</div>
+                <div className="text-sm text-muted">Wait for morning. Night actions are hidden from town.</div>
               )}
             </div>
           )}
@@ -994,7 +994,7 @@ export default function MafiaGame() {
                 <div className="text-sm text-muted">
                   Skip to vote:{' '}
                   <span className="font-semibold text-text">{mafia.daySkipYesCount ?? 0}</span> /{' '}
-                  <span className="font-semibold text-text">{alivePlayers.length}</span> alive — need{' '}
+                  <span className="font-semibold text-text">{alivePlayers.length}</span> alive; need{' '}
                   <span className="font-semibold text-text">
                     {Math.floor(alivePlayers.length / 2) + 1}
                   </span>{' '}
@@ -1411,8 +1411,7 @@ export default function MafiaGame() {
                           <span>
                           <span className="font-semibold text-teal-200">The Doctor</span> protected{' '}
                           <span className="font-semibold text-text">{joinPlayerNames(saved, nameById)}</span>
-                          {' — '}
-                          {saved.length === 1 ? 'they were' : 'they were each'} targeted for elimination and survived
+                          . {saved.length === 1 ? 'They were' : 'They were each'} targeted for elimination and survived
                           the night.
                           </span>
                         </li>
@@ -1438,7 +1437,7 @@ export default function MafiaGame() {
                   </span>
                 </p>
               ) : (
-                <p className="text-muted">The vote ended in a tie — no elimination.</p>
+                <p className="text-muted">The vote ended in a tie. No elimination.</p>
               )}
             </div>
 

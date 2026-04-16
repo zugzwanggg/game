@@ -29,7 +29,7 @@ export function VoiceModeControl({ className = '' }: VoiceModeControlProps) {
           <p className="truncate text-xs text-muted">
             {voiceMode
               ? 'Mic enabled for this session (UI only).'
-              : 'Voice chat off — toggle when your party is ready.'}
+              : 'Voice chat off. Turn it on when you are ready.'}
           </p>
         </div>
       </div>

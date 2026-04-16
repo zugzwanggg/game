@@ -65,7 +65,7 @@ export default function MemeBattleGame() {
   const [autoReveal, setAutoReveal] = useState(true)
 
   const minPlayersMet = players.length >= 2
-  /** Leave the match lobby entirely — do not open `/room/...` or we re-join and bounce back into play. */
+  /** Leave the match lobby entirely; do not open `/room/...` or we re-join and bounce back into play. */
   const backTarget = '/games/meme'
 
   const { payload: presencePayload, handlePlayersSnapshot, dismiss: dismissPresence } =
@@ -416,7 +416,7 @@ export default function MemeBattleGame() {
               </div>
               <div className="mb-3 rounded-xl border border-teal/30 bg-teal/10 px-4 py-3">
                 <p className="leading-relaxed text-text">
-                  {meme.winningPromptIndex !== null ? meme.prompts[meme.winningPromptIndex] : '—'}
+                  {meme.winningPromptIndex !== null ? meme.prompts[meme.winningPromptIndex] : '-'}
                 </p>
               </div>
               <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
@@ -534,7 +534,7 @@ export default function MemeBattleGame() {
               </div>
               <div className="mb-3 rounded-xl border border-teal/30 bg-teal/10 px-4 py-3">
                 <p className="leading-relaxed text-text">
-                  {meme.winningPromptIndex !== null ? meme.prompts[meme.winningPromptIndex] : '—'}
+                  {meme.winningPromptIndex !== null ? meme.prompts[meme.winningPromptIndex] : '-'}
                 </p>
               </div>
 
@@ -624,7 +624,7 @@ export default function MemeBattleGame() {
                               title={cantVoteSelf ? undefined : 'Vote for this GIF'}
                             >
                               <ThumbsUp size={16} className="mr-2" />
-                              {cantVoteSelf ? '—' : votedFor ? 'Voted' : 'Vote'}
+                              {cantVoteSelf ? '-' : votedFor ? 'Voted' : 'Vote'}
                             </Button>
                           </div>
                         </div>
@@ -646,7 +646,7 @@ export default function MemeBattleGame() {
               <h3 className="mb-1 text-center text-lg font-semibold text-text">
                 Points after round {meme.round}
               </h3>
-              <p className="mb-4 text-center text-sm text-muted">Running total — votes from each round add up</p>
+              <p className="mb-4 text-center text-sm text-muted">Running total: votes from each round add up</p>
               <div className="mx-auto mb-8 w-full max-w-md space-y-2">
                 {leaderboard.map((e, idx) => (
                   <div

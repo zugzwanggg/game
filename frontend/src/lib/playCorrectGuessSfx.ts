@@ -7,6 +7,6 @@ export function playCorrectGuessSfx(): void {
   const audio = new Audio(correctGuessSfxUrl)
   audio.volume = 0.95
   void audio.play().catch(() => {
-    /* Autoplay policy or missing decode — ignore. */
+    /* Autoplay policy or missing decode: ignore. */
   })
 }

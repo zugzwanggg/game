@@ -126,7 +126,7 @@ export default function GameRoom() {
             <h1 className="mb-2 text-2xl font-extrabold text-text sm:text-3xl">
               {game.label}
             </h1>
-            <p className="mb-4 text-lg font-medium gradient-text">
+            <p className="mb-4 text-lg font-medium text-accent">
               {game.tagline}
             </p>
             <p className="max-w-lg text-sm leading-relaxed text-muted">

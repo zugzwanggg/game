@@ -31,16 +31,16 @@ export function RoomVoiceDock({
 
   const canVoice = Boolean(roomCode && myPlayerId && players.length >= 2)
   const subline = !canVoice
-    ? 'Voice unlocks with 2+ people in this room.'
+    ? 'Voice needs at least two people in this room.'
     : silenceAll && voiceMode && (status === 'live' || status === 'requesting')
-      ? 'Night — everyone muted until morning.'
+      ? 'Night: everyone muted until morning.'
       : voiceMode && status === 'live'
         ? `${remoteAudioCount}/${peerCount} connected · mesh · Opus`
         : voiceMode && status === 'requesting'
           ? 'Connecting…'
           : voiceMode && status === 'error'
             ? error ?? 'Could not open microphone'
-            : 'Browser WebRTC — low bitrate, echo cancellation on'
+            : 'Browser WebRTC: low bitrate, echo cancellation on'
 
   return (
     <div

@@ -297,7 +297,7 @@ export default function SpyGame() {
                   ? formatClock(voteSec)
                   : status === 'spy_guess'
                     ? formatClock(guessSec)
-                    : '—'}
+                    : '-'}
             </span>
           </div>
         )}
@@ -354,7 +354,7 @@ export default function SpyGame() {
                   onClick={startMatch}
                   className="justify-center"
                 >
-                  {!minPlayersMet ? 'Need 3–10 players' : 'Start round'}
+                  {!minPlayersMet ? 'Need 3-10 players' : 'Start round'}
                 </Button>
               ) : (
                 <div className="text-sm text-muted">Waiting for the host to start…</div>
@@ -391,7 +391,7 @@ export default function SpyGame() {
               </div>
 
               <div className="mb-4 rounded-2xl border border-border bg-base p-4 text-sm text-muted">
-                Talk freely. Give hints without revealing the word. Anyone can call for an early vote — it starts only when a majority agrees.
+                Talk freely. Give hints without revealing the word. Anyone can call for an early vote; it starts when a majority agrees.
               </div>
 
               <div
@@ -494,10 +494,10 @@ export default function SpyGame() {
               <div className="mb-4 rounded-2xl border border-border bg-base p-4">
                 <div className="text-sm text-muted">Spy</div>
                 <div className="text-lg font-semibold text-text">
-                  {spy.revealedSpyPlayerId ? nameById.get(spy.revealedSpyPlayerId) ?? 'Unknown' : '—'}
+                  {spy.revealedSpyPlayerId ? nameById.get(spy.revealedSpyPlayerId) ?? 'Unknown' : '-'}
                 </div>
                 <div className="mt-2 text-sm text-muted">Secret word</div>
-                <div className="text-lg font-semibold text-text">{spy.revealedWord ?? '—'}</div>
+                <div className="text-lg font-semibold text-text">{spy.revealedWord ?? '-'}</div>
                 <div className="mt-3 text-sm">
                   Winner:{' '}
                   <span className={spy.winner === 'agents' ? 'font-semibold text-teal' : 'font-semibold text-amber-300'}>
@@ -628,7 +628,7 @@ export default function SpyGame() {
 
             {!minPlayersMet && (
               <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
-                Need 3–10 players to play Spy.
+                Need 3-10 players to play Spy.
               </div>
             )}
 

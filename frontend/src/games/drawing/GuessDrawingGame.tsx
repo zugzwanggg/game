@@ -131,7 +131,7 @@ export default function GuessDrawingGame() {
     {
       id: 'sys-0',
       author: 'Game',
-      text: `Best of ${MAX_ROUNDS} rounds — each correct guess scores +${POINTS_CORRECT_GUESS} for Guesser. After each round you’ll see the leaderboard. (Use “Guessing” to practice locally.)`,
+      text: `Best of ${MAX_ROUNDS} rounds. Each correct guess scores +${POINTS_CORRECT_GUESS} for Guesser. After each round you’ll see the leaderboard. (Use “Guessing” to practice locally.)`,
       variant: 'system',
     },
   ])
@@ -383,7 +383,7 @@ export default function GuessDrawingGame() {
         {
           id: crypto.randomUUID(),
           author: 'Game',
-          text: `New match — round 1/${MAX_ROUNDS}. Scores reset.`,
+          text: `New match, round 1/${MAX_ROUNDS}. Scores reset.`,
           variant: 'system',
         },
       ])
@@ -395,7 +395,7 @@ export default function GuessDrawingGame() {
         {
           id: crypto.randomUUID(),
           author: 'Game',
-          text: `Round ${next}/${MAX_ROUNDS} — draw the next word.`,
+          text: `Round ${next}/${MAX_ROUNDS}: draw the next word.`,
           variant: 'system',
         },
       ])
@@ -491,7 +491,7 @@ export default function GuessDrawingGame() {
         {
           id: crypto.randomUUID(),
           author: 'Game',
-          text: 'You are now guessing — type your guess in chat.',
+          text: 'You are now guessing. Type your guess in chat.',
           variant: 'system',
         },
       ])
@@ -861,7 +861,7 @@ export default function GuessDrawingGame() {
                 <p className="text-xs font-semibold uppercase tracking-widest text-muted">
                   {isOnline && solvedByName
                     ? `${solvedByName} guessed it!`
-                    : "Time's up — the word was"}
+                    : "Time's up. The word was"}
                 </p>
                 <p className="font-mono text-2xl font-extrabold tracking-wide text-accent sm:text-3xl">
                   {isOnline ? revealedWord ?? drawerWord ?? '...' : secretWord}
@@ -870,8 +870,8 @@ export default function GuessDrawingGame() {
                   Switching turns in{' '}
                   <span className="font-mono font-bold tabular-nums text-text">
                     {revealSecondsLeft}
-                  </span>
-                  s…
+                  </span>{' '}
+                  sec
                 </p>
               </div>
             )}
@@ -935,10 +935,10 @@ export default function GuessDrawingGame() {
                   {gamePhase === 'leaderboard'
                     ? 'Check the leaderboard, then tap continue for the next round.'
                     : role === 'drawer' && drawerTurnPhase === 'reveal'
-                      ? 'The word is on the canvas — you’ll switch to Guessing automatically.'
+                      ? 'The word is on the canvas. You’ll switch to Guessing automatically.'
                       : role === 'drawer'
                         ? 'Switch to “Guessing” to type guesses, or open another browser as a guesser later.'
-                        : 'This round is over — the leaderboard will open after a correct guess.'}
+                        : 'This round is over. The leaderboard opens after a correct guess.'}
                 </p>
               )}
             </form>

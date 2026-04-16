@@ -146,7 +146,7 @@ export default function JoinRoom() {
               })()
             }}
           >
-            {loading ? 'Joining…' : 'Join the Party'}
+            {loading ? 'Joining…' : 'Join room'}
           </Button>
 
           {error && (
@@ -156,7 +156,7 @@ export default function JoinRoom() {
           )}
 
           <p className="mt-4 text-center text-xs text-muted">
-            No account needed — joining as a guest.
+            No account needed. You join as a guest.
           </p>
         </div>
       </div>

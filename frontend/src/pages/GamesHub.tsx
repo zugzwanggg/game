@@ -58,17 +58,16 @@ export default function GamesHub() {
         <div className="mb-3 flex items-center gap-2">
           <TrendingUp size={16} className="text-accent" />
           <span className="text-xs font-semibold uppercase tracking-widest text-accent">
-            Game Library
+            Games
           </span>
         </div>
         <h1 className="mb-3 text-3xl font-extrabold leading-tight text-text sm:text-4xl">
           Pick a game,
           <br />
-          <span className="gradient-text">start the party.</span>
+          <span className="text-accent">open a room.</span>
         </h1>
         <p className="max-w-md text-base leading-relaxed text-muted">
-          Choose a game, create a room, share the link. No accounts needed —
-          just paste and play.
+          Create a room, share the link, and play. No account needed.
         </p>
       </div>
 
