@@ -139,6 +139,25 @@ export default function LiarsRevolverGame() {
   /** After the match ends, show every seat (winner + eliminated). */
   const tablePlayers = liar?.status === 'finished' ? players : alivePlayers
 
+  const [viewportW, setViewportW] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1024,
+  )
+  useEffect(() => {
+    const onResize = () => setViewportW(window.innerWidth)
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  const seatRadiusPct = useMemo(() => {
+    const n = tablePlayers.length
+    let base =
+      viewportW >= 1024 ? 44 : viewportW >= 640 ? 42 : viewportW >= 480 ? 36 : 32
+    if (n >= 6) base -= 3
+    else if (n === 5) base -= 2
+    return Math.max(28, Math.min(base, 44))
+  }, [tablePlayers.length, viewportW])
+
   const isHost = Boolean(playerId && createdByUserId && playerId === createdByUserId)
 
   const leaveRoomSocket = () => {
@@ -242,6 +261,10 @@ export default function LiarsRevolverGame() {
     liar.lastPlay.playerId !== playerId &&
     bluffSec > 0
 
+  const showMyHand = Boolean(
+    playerId && liar?.status === 'playing' && !liar.revolvers[playerId]?.eliminated,
+  )
+
   const playCards = () => {
     if (!canPlay || selected.size < 1) return
     const socket = getSocket()
@@ -272,7 +295,7 @@ export default function LiarsRevolverGame() {
 
   return (
     <div
-      className={`relative flex min-h-0 flex-1 flex-col overflow-hidden bg-base ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}
+      className={`relative flex h-dvh max-h-dvh min-h-0 flex-1 flex-col overflow-hidden bg-base pb-[env(safe-area-inset-bottom,0px)] pt-[env(safe-area-inset-top,0px)] ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}
     >
       <style>{`
         @keyframes shake {
@@ -296,11 +319,11 @@ export default function LiarsRevolverGame() {
         onDismiss={dismissPresence}
       />
 
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="flex shrink-0 flex-col gap-2 border-b border-border px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-4 sm:py-3">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Link
             to={backTarget}
-            className="flex items-center gap-2 text-sm text-muted hover:text-text"
+            className="flex min-h-[44px] min-w-0 items-center gap-2 rounded-lg px-1 text-sm text-muted touch-manipulation [-webkit-tap-highlight-color:transparent] active:bg-white/5 hover:text-text"
             onClick={(e) => {
               if (roomCode) {
                 e.preventDefault()
@@ -316,7 +339,7 @@ export default function LiarsRevolverGame() {
               type="button"
               variant="ghost"
               size="sm"
-              className="shrink-0"
+              className="min-h-[44px] shrink-0 touch-manipulation px-3"
               onClick={() => {
                 leaveRoomSocket()
                 void navigate('/games')
@@ -332,14 +355,14 @@ export default function LiarsRevolverGame() {
           )}
         </div>
         {liar?.status === 'playing' && (
-          <div className="text-right text-xs text-muted">
-            Round {liar.round} · declare any rank and count on your turn
+          <div className="text-[10px] leading-snug text-muted sm:w-auto sm:text-right sm:text-xs">
+            Round {liar.round}. Declare any rank and count on your turn.
           </div>
         )}
       </div>
 
       {liar?.status === 'finished' && liar.winnerId && (
-        <div className="flex shrink-0 flex-col items-stretch gap-3 border-b border-border bg-card/90 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex shrink-0 flex-col items-stretch gap-3 border-b border-border bg-card/90 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted">Winner</p>
             <p className="text-lg font-extrabold text-text">
@@ -347,23 +370,51 @@ export default function LiarsRevolverGame() {
             </p>
           </div>
           {isHost && (
-            <Button type="button" variant="teal" size="md" className="shrink-0" onClick={startNewMatch}>
+            <Button
+              type="button"
+              variant="teal"
+              size="md"
+              className="min-h-[48px] w-full shrink-0 touch-manipulation sm:min-h-0 sm:w-auto"
+              onClick={startNewMatch}
+            >
               Start new match
             </Button>
           )}
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 lg:flex-row lg:gap-4 lg:p-4">
-        <section className="relative flex min-h-[320px] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-surface/80 p-3 lg:min-h-0">
-          <div className="relative mx-auto mb-2 h-[min(52vh,520px)] w-full max-w-[640px]">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain p-2 sm:gap-3 sm:p-3 lg:flex-row lg:gap-4 lg:overflow-hidden lg:p-4">
+        <section className="relative flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-visible rounded-2xl border border-border bg-surface/80 p-2 sm:p-3 lg:min-h-0 lg:overflow-hidden">
+          {/* Table row: on phone, Play / Call Liar sit beside the felt (hidden lg+). */}
+          <div className="mb-1 flex flex-row items-stretch gap-1 sm:mb-2 sm:gap-2 lg:mb-2">
+            {showMyHand && (
+              <div className="flex w-[3.75rem] shrink-0 flex-col justify-center gap-2 lg:hidden">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  disabled={!canPlay || selected.size < 1 || selected.size > 3}
+                  onClick={playCards}
+                  className="min-h-[44px] w-full touch-manipulation px-1.5 py-2 text-[11px] leading-tight"
+                >
+                  <span className="flex flex-col items-center gap-0.5">
+                    <span>Play</span>
+                    <span className="font-normal opacity-90">
+                      {selected.size > 0 ? `${selected.size} card${selected.size === 1 ? '' : 's'}` : 'cards'}
+                    </span>
+                  </span>
+                </Button>
+              </div>
+            )}
+            {/* Square viewport so % left / % top share one scale (circle, not ellipse). */}
+            <div className="relative mx-auto mb-0 aspect-square min-w-0 w-full max-h-[min(40vh,380px)] max-w-[640px] flex-1 sm:max-h-[min(46vh,460px)] lg:mb-1 lg:max-h-[min(52vh,520px)]">
             {/* Table */}
-            <div className="absolute inset-[18%] rounded-full border-2 border-border/80 bg-base/90 shadow-[inset_0_0_40px_rgba(0,0,0,0.35)]" />
+            <div className="absolute inset-[20%] rounded-full border-2 border-border/80 bg-base/90 shadow-[inset_0_0_40px_rgba(0,0,0,0.35)] sm:inset-[18%]" />
 
             {tablePlayers.map((p, i) => {
               const ang = seatAngle(i, n)
               const rad = (ang * Math.PI) / 180
-              const r = 44
+              const r = seatRadiusPct
               const x = 50 + r * Math.cos(rad)
               const y = 50 + r * Math.sin(rad)
               const rev = liar?.revolvers[p.id]
@@ -374,11 +425,11 @@ export default function LiarsRevolverGame() {
               return (
                 <div
                   key={p.id}
-                  className="absolute z-10 flex w-[130px] max-w-[34vw] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
+                  className="absolute z-10 flex w-[min(5.25rem,24vw)] max-w-[96px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5 sm:w-[130px] sm:max-w-[34vw] sm:gap-1"
                   style={{ left: `${x}%`, top: `${y}%` }}
                 >
                   <div
-                    className={`flex w-full flex-col items-center rounded-xl border px-2 py-2 text-center ${
+                    className={`flex w-full flex-col items-center rounded-lg border px-1.5 py-1.5 text-center sm:rounded-xl sm:px-2 sm:py-2 ${
                       rev?.eliminated
                         ? 'border-border/40 bg-black/40 opacity-50'
                         : isTurn || isDecl
@@ -386,15 +437,15 @@ export default function LiarsRevolverGame() {
                           : 'border-border bg-card'
                     }`}
                   >
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5 sm:gap-1">
                       <Avatar name={p.displayName} size="sm" />
-                      <span className="max-w-[7rem] truncate text-xs font-semibold text-text">
+                      <span className="max-w-[4.5rem] truncate text-[10px] font-semibold leading-tight text-text sm:max-w-[7rem] sm:text-xs">
                         {p.displayName}
                         {isMe ? ' (you)' : ''}
                       </span>
                     </div>
-                    <div className="mt-1 flex items-center gap-1 text-[10px] text-muted">
-                      <Crosshair size={12} className="shrink-0" />
+                    <div className="mt-0.5 flex items-center gap-0.5 text-[9px] text-muted sm:mt-1 sm:gap-1 sm:text-[10px]">
+                      <Crosshair size={11} className="shrink-0 sm:h-3 sm:w-3" />
                       {rev?.eliminated ? (
                         <span className="text-rose-400">Out</span>
                       ) : (
@@ -404,14 +455,14 @@ export default function LiarsRevolverGame() {
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 flex gap-0.5">
+                    <div className="mt-0.5 flex justify-center gap-px sm:mt-1 sm:gap-0.5">
                       {Array.from({ length: 6 }).map((_, ci) => {
                         const tail = rev?.pullHistory.slice(-6) ?? []
                         const h = tail[ci]
                         return (
                           <span
                             key={ci}
-                            className={`h-2 w-2 rounded-full ${
+                            className={`h-1.5 w-1.5 rounded-full sm:h-2 sm:w-2 ${
                               h === 'bang'
                                 ? 'bg-red-500'
                                 : h === 'click'
@@ -429,10 +480,10 @@ export default function LiarsRevolverGame() {
             })}
 
             {/* Center pile */}
-            <div className="absolute left-1/2 top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2">
-              <div className="relative flex h-24 w-20 items-center justify-center rounded-lg border border-border bg-card shadow-lg">
+            <div className="absolute left-1/2 top-1/2 z-20 flex max-w-[calc(100%-0.5rem)] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5 px-1 sm:gap-2">
+              <div className="relative flex h-20 w-[4.5rem] items-center justify-center rounded-lg border border-border bg-card shadow-lg sm:h-24 sm:w-20">
                 <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-accent/25 to-fuchsia-500/10" />
-                <span className="relative text-3xl font-black text-text/90">
+                <span className="relative text-2xl font-black text-text/90 sm:text-3xl">
                   {liar?.pileCardCount ?? 0}
                 </span>
                 <span className="absolute bottom-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
@@ -441,7 +492,7 @@ export default function LiarsRevolverGame() {
               </div>
 
               {liar?.phase === 'bluff' && liar.lastPlay && (
-                <div className="max-w-[min(260px,90vw)] rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-center text-xs text-amber-50">
+                <div className="max-w-[min(260px,calc(100vw-2rem))] rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-center text-[11px] text-amber-50 sm:px-3 sm:py-2 sm:text-xs">
                   <p className="font-semibold">
                     {nameById.get(liar.lastPlay.playerId) ?? 'Player'} claims{' '}
                     <span className="text-amber-200">
@@ -456,7 +507,7 @@ export default function LiarsRevolverGame() {
               )}
 
               {liar?.resolving && (
-                <div className="max-w-[220px] rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-center text-xs text-sky-50">
+                <div className="max-w-[min(220px,calc(100vw-2rem))] rounded-xl border border-sky-500/40 bg-sky-500/10 px-2 py-2 text-center text-[11px] text-sky-50 sm:px-3 sm:text-xs">
                   <p className="mb-1 text-[10px] text-sky-200/90">
                     Claimed {liar.resolving.claimedCount} × {liar.resolving.claimedRank}
                   </p>
@@ -491,24 +542,45 @@ export default function LiarsRevolverGame() {
               )}
             </div>
           </div>
+            {showMyHand && (
+              <div className="flex w-[3.75rem] shrink-0 flex-col justify-center gap-2 lg:hidden">
+                <Button
+                  type="button"
+                  variant="teal"
+                  size="sm"
+                  disabled={!canCall}
+                  onClick={callLiar}
+                  className="min-h-[44px] w-full touch-manipulation px-1.5 py-2 text-[11px] leading-tight"
+                >
+                  <span className="flex flex-col items-center gap-0.5">
+                    <span>Call</span>
+                    <span>Liar!</span>
+                  </span>
+                </Button>
+              </div>
+            )}
+          </div>
 
           {/* My hand */}
-          {playerId && liar?.status === 'playing' && !liar.revolvers[playerId]?.eliminated && (
-            <div className="mt-auto shrink-0 border-t border-border pt-3">
-              <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-wider text-muted">
-                Your hand · pick cards to play face down, then choose what you claim out loud
+          {showMyHand && (
+            <div className="mt-2 shrink-0 border-t border-border pt-3 sm:mt-auto">
+              <p className="mb-2 px-1 text-center text-[11px] font-semibold uppercase tracking-wider text-muted">
+                <span className="lg:hidden">Tap cards, rank, count. Use Play and Call Liar beside the table.</span>
+                <span className="hidden lg:inline">
+                  Your hand: tap cards, then rank and count, then Play.
+                </span>
               </p>
-              <div className="mb-3 flex flex-col items-center gap-2 sm:flex-row sm:justify-center sm:gap-4">
+              <div className="mb-3 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-center sm:gap-4">
                 <div className="flex flex-col gap-1">
                   <span className="text-center text-[10px] font-semibold uppercase text-muted">Claim rank</span>
-                  <div className="flex flex-wrap justify-center gap-1">
+                  <div className="flex flex-wrap justify-center gap-1.5 sm:gap-1">
                     {LIAR_RANKS.map((r) => (
                       <button
                         key={r}
                         type="button"
                         disabled={!canPlay}
                         onClick={() => canPlay && setClaimedRank(r)}
-                        className={`rounded-lg border px-2.5 py-1.5 text-sm font-bold transition-colors ${
+                        className={`min-h-[44px] min-w-[40px] touch-manipulation rounded-lg border px-2.5 py-2 text-sm font-bold transition-colors [-webkit-tap-highlight-color:transparent] active:scale-[0.98] sm:min-h-0 sm:min-w-0 sm:py-1.5 ${
                           claimedRank === r
                             ? 'border-accent bg-accent/25 text-text'
                             : 'border-border bg-card text-muted hover:border-accent/40'
@@ -521,14 +593,14 @@ export default function LiarsRevolverGame() {
                 </div>
                 <div className="flex flex-col gap-1">
                   <span className="text-center text-[10px] font-semibold uppercase text-muted">Claim count</span>
-                  <div className="flex justify-center gap-1">
+                  <div className="flex justify-center gap-2 sm:gap-1">
                     {([1, 2, 3] as const).map((c) => (
                       <button
                         key={c}
                         type="button"
                         disabled={!canPlay}
                         onClick={() => canPlay && setClaimedCount(c)}
-                        className={`rounded-lg border px-3 py-1.5 text-sm font-bold transition-colors ${
+                        className={`min-h-[44px] min-w-[48px] touch-manipulation rounded-lg border px-3 py-2 text-sm font-bold transition-colors [-webkit-tap-highlight-color:transparent] active:scale-[0.98] sm:min-h-0 sm:min-w-0 sm:py-1.5 ${
                           claimedCount === c
                             ? 'border-accent bg-accent/25 text-text'
                             : 'border-border bg-card text-muted hover:border-accent/40'
@@ -540,7 +612,7 @@ export default function LiarsRevolverGame() {
                   </div>
                 </div>
               </div>
-              <div className="flex flex-wrap justify-center gap-2">
+              <div className="flex flex-wrap justify-center gap-2 pb-1">
                 {myHand.map((c) => {
                   const on = selected.has(c.id)
                   return (
@@ -549,7 +621,7 @@ export default function LiarsRevolverGame() {
                       type="button"
                       disabled={!canPlay}
                       onClick={() => canPlay && toggleCard(c.id)}
-                      className={`relative rounded-lg border px-3 py-3 font-mono text-lg font-bold transition-all ${
+                      className={`relative min-h-[52px] min-w-[48px] touch-manipulation rounded-lg border px-3 py-3 font-mono text-lg font-bold transition-all [-webkit-tap-highlight-color:transparent] active:scale-[0.97] select-none sm:min-h-0 sm:min-w-0 ${
                         on
                           ? 'border-accent bg-accent/20 ring-2 ring-accent/50'
                           : 'border-border bg-card hover:border-accent/40'
@@ -562,14 +634,14 @@ export default function LiarsRevolverGame() {
                 })}
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <div className="mt-3 hidden w-full flex-col gap-2 lg:flex lg:flex-row lg:flex-wrap lg:items-center lg:justify-center">
                 <Button
                   type="button"
                   variant="primary"
                   size="md"
                   disabled={!canPlay || selected.size < 1 || selected.size > 3}
                   onClick={playCards}
-                  className="min-w-[8rem]"
+                  className="min-h-[48px] w-full touch-manipulation sm:min-h-0 sm:w-auto sm:min-w-[8rem]"
                 >
                   Play {selected.size > 0 ? `${selected.size} ` : ''}card
                   {selected.size === 1 ? '' : 's'}
@@ -580,7 +652,7 @@ export default function LiarsRevolverGame() {
                   size="md"
                   disabled={!canCall}
                   onClick={callLiar}
-                  className="min-w-[8rem]"
+                  className="min-h-[48px] w-full touch-manipulation sm:min-h-0 sm:w-auto sm:min-w-[8rem]"
                 >
                   Call Liar!
                 </Button>
@@ -601,9 +673,9 @@ export default function LiarsRevolverGame() {
           )}
         </section>
 
-        <aside className="flex max-h-[40vh] min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-card lg:max-h-none lg:w-[300px]">
+        <aside className="hidden max-h-[min(32vh,220px)] min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-card sm:max-h-[40vh] lg:flex lg:max-h-none lg:w-[300px]">
           <div className="border-b border-border px-3 py-2 text-sm font-semibold text-text">Log</div>
-          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2 text-xs text-muted">
+          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 py-2 text-xs text-muted [-webkit-overflow-scrolling:touch]">
             {(liar?.log ?? []).map((e, i) => (
               <p key={`${e.ts}-${i}`} className="leading-snug">
                 {e.text}
@@ -617,7 +689,7 @@ export default function LiarsRevolverGame() {
       </div>
 
       {roomCode && (
-        <div className="shrink-0 border-t border-border px-3 py-2">
+        <div className="shrink-0 border-t border-border px-2 py-2 sm:px-3">
           <RoomVoiceDock
             roomCode={roomCode}
             myPlayerId={playerId}
