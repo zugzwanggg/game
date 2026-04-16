@@ -108,10 +108,11 @@ export default function RoomPage() {
       if (typeof state.createdByUserId === 'string') setCreatedByUserId(state.createdByUserId)
 
       if (matchInProgressFromSocketState(state)) {
-        const g = state.game as string | undefined
-        if (g === 'drawing' || g === 'meme') {
-          goToPlayIfMatch(g)
-        }
+        const gRaw =
+          (state.game as string | undefined) ??
+          gameId ??
+          (state?.drawingGame ? 'drawing' : state?.memeGame ? 'meme' : undefined)
+        if (gRaw === 'drawing' || gRaw === 'meme') goToPlayIfMatch(gRaw)
       }
 
       handlePlayersSnapshot(

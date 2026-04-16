@@ -10,9 +10,12 @@ const STORAGE_KEY = 'gamemaxxing_voice_mode'
 
 function readStored(): boolean {
   try {
-    return localStorage.getItem(STORAGE_KEY) === '1'
+    const v = localStorage.getItem(STORAGE_KEY)
+    // Default ON for rooms. Users can opt out in Settings.
+    if (v === null) return true
+    return v === '1'
   } catch {
-    return false
+    return true
   }
 }
 

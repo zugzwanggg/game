@@ -16,7 +16,7 @@ export function RoomVoiceDock({
   players,
   className = '',
 }: RoomVoiceDockProps) {
-  const { voiceMode, setVoiceMode, toggleVoiceMode } = useVoiceMode()
+  const { voiceMode, setVoiceMode } = useVoiceMode()
 
   const { status, error, muted, setMuted, remoteAudioCount, peerCount } = useRoomVoice({
     roomCode,
@@ -72,40 +72,41 @@ export function RoomVoiceDock({
             variant="ghost"
             size="sm"
             onClick={() => setMuted((m) => !m)}
-            title={muted ? 'Unmute' : 'Mute'}
+            title={muted ? 'Unmute to talk' : 'Mute microphone'}
           >
             {muted ? <MicOff size={16} className="mr-1.5" /> : <Mic size={16} className="mr-1.5" />}
-            {muted ? 'Muted' : 'Mute'}
+            {muted ? 'Unmute' : 'Mute'}
           </Button>
         )}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={voiceMode}
-          aria-label={voiceMode ? 'Turn room voice off' : 'Turn room voice on'}
-          disabled={!canVoice}
-          onClick={() => {
-            if (!canVoice) return
-            toggleVoiceMode()
-          }}
-          className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
-            !canVoice ? 'cursor-not-allowed opacity-50' : ''
-          } ${voiceMode ? 'bg-teal' : 'bg-border'}`}
-        >
-          <span
-            className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all duration-200 ${
-              voiceMode ? 'right-0.5' : 'left-0.5'
-            }`}
-          />
-        </button>
-        {voiceMode && !canVoice && (
-          <button
+        {!voiceMode && (
+          <Button
             type="button"
-            className="text-xs font-medium text-muted hover:text-text"
-            onClick={() => setVoiceMode(false)}
+            variant="ghost"
+            size="sm"
+            disabled={!canVoice}
+            onClick={() => {
+              if (!canVoice) return
+              setVoiceMode(true)
+            }}
+            title="Enable room voice"
+          >
+            <Mic size={16} className="mr-1.5" />
+            Enable voice
+          </Button>
+        )}
+        {voiceMode && canVoice && (status === 'idle' || status === 'error') && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              // Quick opt-out; primary opt-out is in Settings.
+              setVoiceMode(false)
+            }}
+            title="Turn voice off"
           >
             Turn off
-          </button>
+          </Button>
         )}
       </div>
     </div>

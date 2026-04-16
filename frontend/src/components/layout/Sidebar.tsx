@@ -9,6 +9,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthProvider'
+import { useVoiceMode } from '../../context/useVoiceMode'
 import { apiFetch } from '../../lib/api'
 import { readStoredSfxEnabled, setSfxEnabled } from '../../lib/sfxPrefs'
 import { getRecentRooms, removeRecentRoom, type RecentRoom } from '../../lib/recentRooms'
@@ -33,6 +34,7 @@ export default function Sidebar({ mobileOpen = true, onRequestClose }: SidebarPr
   const navigate = useNavigate()
   const [tab, setTab] = useState<TabId>('games')
   const { principal, logout } = useAuth()
+  const { voiceMode, setVoiceMode } = useVoiceMode()
   const [stats, setStats] = useState<{ gamesPlayed: number; wins: number; bestScore: number } | null>(null)
   const [recentRooms, setRecentRooms] = useState<RecentRoom[]>([])
   const [sfxOn, setSfxOn] = useState(() => readStoredSfxEnabled())
@@ -240,6 +242,28 @@ export default function Sidebar({ mobileOpen = true, onRequestClose }: SidebarPr
             <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-muted">
               Preferences
             </p>
+            <div className="flex items-center justify-between rounded-xl bg-card px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-text">Room voice</p>
+                <p className="text-xs text-muted">Auto-join voice in rooms (mic starts muted)</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={voiceMode}
+                aria-label="Toggle room voice"
+                onClick={() => setVoiceMode(!voiceMode)}
+                className={`relative h-5 w-10 shrink-0 rounded-full transition-colors ${
+                  voiceMode ? 'bg-teal/50' : 'bg-border/80'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
+                    voiceMode ? 'right-0.5' : 'left-0.5'
+                  }`}
+                />
+              </button>
+            </div>
             <div className="flex items-center justify-between rounded-xl bg-card px-4 py-3">
               <div>
                 <p className="text-sm font-medium text-text">Notifications</p>

@@ -13,6 +13,12 @@ export function matchInProgressFromSocketState(state: {
     const s = state.memeGame?.status
     return s != null && s !== 'lobby'
   }
+  // Fallback: some clients/pages may see a state snapshot before `game` is set.
+  // Infer from game-specific state objects.
+  const ds = state.drawingGame?.status
+  if (ds != null && ds !== 'lobby') return true
+  const ms = state.memeGame?.status
+  if (ms != null && ms !== 'lobby') return true
   return false
 }
 

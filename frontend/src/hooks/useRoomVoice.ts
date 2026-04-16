@@ -39,7 +39,8 @@ export function useRoomVoice(opts: {
 
   const [status, setStatus] = useState<RoomVoiceStatus>('idle')
   const [error, setError] = useState<string | null>(null)
-  const [muted, setMuted] = useState(false)
+  // Default muted: users explicitly unmute to speak.
+  const [muted, setMuted] = useState(true)
   const [remoteAudioCount, setRemoteAudioCount] = useState(0)
 
   const mutedRef = useRef(muted)
