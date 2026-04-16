@@ -1,4 +1,6 @@
-export type GameKey = 'drawing' | 'meme' | 'spy'
+export type GameKey = 'drawing' | 'meme' | 'spy' | 'mafia'
+
+export type MafiaRole = 'mafia' | 'town' | 'doctor' | 'detective'
 
 export type RoomPlayer = {
   id: string
@@ -93,6 +95,53 @@ export type RoomState = {
     tie: boolean
     /** If Spy was caught, whether they guessed the word correctly. */
     spyGuessedCorrectly: boolean | null
+  }
+  mafiaGame?: {
+    matchId: number
+    round: number
+    status: 'lobby' | 'night' | 'day' | 'voting' | 'results'
+    /** Server-only; never broadcast in full. */
+    roles: Record<string, MafiaRole>
+    alive: Record<string, boolean>
+    phaseEndsAt: number | null
+    nightEndsAt: number | null
+    dayEndsAt: number | null
+    voteEndsAt: number | null
+    resultsEndsAt: number | null
+    mafiaKillVotes: Record<string, string>
+    doctorSaveTarget: string | null
+    /** Who the doctor protected last night; cannot be targeted again this night. */
+    doctorPreviousNightProtectTarget: string | null
+    detectiveInvestigateTarget: string | null
+    /** If set, detective kills this player at night (mutually exclusive with investigate). */
+    detectiveKillTarget: string | null
+    /** Set at end of night before clear; emitted privately then cleared (not in public state). */
+    pendingDetectiveReveal: {
+      detectiveId: string
+      targetId: string
+      role: MafiaRole
+    } | null
+    dayVotes: Record<string, string>
+    /** Alive players who asked to skip discussion and go straight to voting. */
+    daySkipYes: Record<string, boolean>
+    /** Living mafia who asked to end the night early (after submitting a kill vote). */
+    nightSkipYes: Record<string, boolean>
+    winner: 'town' | 'mafia' | null
+    lastAnnouncement: {
+      kind: 'night' | 'vote'
+      playerId: string | null
+      /** Second victim when both Mafia and Detective kills resolve in one night. */
+      secondaryPlayerId?: string | null
+      /** Full role of `playerId` when revealed (night or vote). */
+      roleReveal: MafiaRole | null
+      secondaryRoleReveal?: MafiaRole | null
+      /** Night: who eliminated `playerId`. */
+      primaryKillBy?: 'mafia' | 'detective'
+      /** Night: who eliminated `secondaryPlayerId`. */
+      secondaryKillBy?: 'mafia' | 'detective'
+      /** Night: players targeted for elimination but protected by the Doctor. */
+      doctorSavedPlayerIds?: string[]
+    } | null
   }
   drawingGame?: {
     status: 'lobby' | 'playing' | 'reveal' | 'leaderboard'

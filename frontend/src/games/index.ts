@@ -1,4 +1,4 @@
-import { Eye, ImageIcon, Pencil, type LucideIcon } from 'lucide-react'
+import { Eye, ImageIcon, Pencil, Skull, type LucideIcon } from 'lucide-react'
 
 export type GameDefinition = {
   id: string
@@ -58,6 +58,20 @@ export const GAMES: Record<string, GameDefinition> = {
     maxPlayers: 10,
     duration: '~5 min',
     tags: ['social deduction', 'voice', 'party'],
+  },
+  mafia: {
+    id: 'mafia',
+    label: 'Mafia',
+    tagline: 'Trust no one. Survive the night.',
+    description:
+      'A classic social deduction game: a hidden Mafia faction eliminates at night while Town debates by day. Vote wisely — or the Mafia wins by parity.',
+    icon: Skull,
+    glowColor: 'rgba(244, 63, 94, 0.25)',
+    accentColor: '#F43F5E',
+    players: '5–12 players',
+    maxPlayers: 12,
+    duration: '~15 min',
+    tags: ['social deduction', 'party', 'voice'],
   },
 }
 

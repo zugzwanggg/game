@@ -16,6 +16,10 @@ function matchActive(room: RoomState): boolean {
     const s = room.spyGame
     return s != null && s.status !== 'lobby'
   }
+  if (room.game === 'mafia') {
+    const m = room.mafiaGame
+    return m != null && m.status !== 'lobby'
+  }
   return false
 }
 

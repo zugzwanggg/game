@@ -8,6 +8,8 @@ type RoomVoiceDockProps = {
   myPlayerId: string | null
   players: VoicePeer[]
   className?: string
+  /** Mute all incoming/outgoing voice (e.g. Mafia night). */
+  silenceAll?: boolean
 }
 
 export function RoomVoiceDock({
@@ -15,6 +17,7 @@ export function RoomVoiceDock({
   myPlayerId,
   players,
   className = '',
+  silenceAll = false,
 }: RoomVoiceDockProps) {
   const { voiceMode, setVoiceMode } = useVoiceMode()
 
@@ -23,18 +26,21 @@ export function RoomVoiceDock({
     myPlayerId,
     peers: players,
     enabled: voiceMode && Boolean(roomCode && myPlayerId && players.length >= 2),
+    silenceAll,
   })
 
   const canVoice = Boolean(roomCode && myPlayerId && players.length >= 2)
   const subline = !canVoice
     ? 'Voice unlocks with 2+ people in this room.'
-    : voiceMode && status === 'live'
-      ? `${remoteAudioCount}/${peerCount} connected · mesh · Opus`
-      : voiceMode && status === 'requesting'
-        ? 'Connecting…'
-        : voiceMode && status === 'error'
-          ? error ?? 'Could not open microphone'
-          : 'Browser WebRTC — low bitrate, echo cancellation on'
+    : silenceAll && voiceMode && (status === 'live' || status === 'requesting')
+      ? 'Night — everyone muted until morning.'
+      : voiceMode && status === 'live'
+        ? `${remoteAudioCount}/${peerCount} connected · mesh · Opus`
+        : voiceMode && status === 'requesting'
+          ? 'Connecting…'
+          : voiceMode && status === 'error'
+            ? error ?? 'Could not open microphone'
+            : 'Browser WebRTC — low bitrate, echo cancellation on'
 
   return (
     <div

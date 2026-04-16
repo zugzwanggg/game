@@ -3,6 +3,7 @@ import type { GameKey, RoomState } from './types.js'
 import { pickRandomWord, toHint } from '../games/drawing/words.js'
 import { MAX_MEME_ROUNDS, tickMemeGame } from '../games/meme/engine.js'
 import { tickSpyGame, SPY_MIN_PLAYERS } from '../games/spy/engine.js'
+import { tickMafiaGame, pruneMafiaForPlayers, MAFIA_MIN } from '../games/mafia/engine.js'
 
 function resetDrawingLobby(g: NonNullable<RoomState['drawingGame']>, room: RoomState) {
   g.status = 'lobby'
@@ -110,6 +111,16 @@ export function applyPlayerLeftRoom(room: RoomState) {
 
   if (room.game === 'drawing' && room.drawingGame) {
     repairDrawingGame(room, t, liveIds)
+  }
+
+  if (room.game === 'mafia' && room.mafiaGame) {
+    pruneMafiaForPlayers(room)
+    tickMafiaGame(room, t)
+    if (room.players.length < MAFIA_MIN) {
+      room.mafiaGame.status = 'lobby'
+      room.mafiaGame.roles = {}
+      room.mafiaGame.alive = {}
+    }
   }
 
   if (room.game === 'spy' && room.spyGame) {
@@ -228,6 +239,32 @@ export function createRoom(args: {
             spyGuessedCorrectly: null,
           }
         : undefined,
+    mafiaGame:
+      args.game === 'mafia'
+        ? {
+            matchId: 0,
+            round: 0,
+            status: 'lobby',
+            roles: {},
+            alive: {},
+            phaseEndsAt: null,
+            nightEndsAt: null,
+            dayEndsAt: null,
+            voteEndsAt: null,
+            resultsEndsAt: null,
+            mafiaKillVotes: {},
+            doctorSaveTarget: null,
+            doctorPreviousNightProtectTarget: null,
+            detectiveInvestigateTarget: null,
+            detectiveKillTarget: null,
+            pendingDetectiveReveal: null,
+            dayVotes: {},
+            daySkipYes: {},
+            nightSkipYes: {},
+            winner: null,
+            lastAnnouncement: null,
+          }
+        : undefined,
     round: {
       phase: 'drawing',
       endsAt: t + DRAW_SEC * 1000,
@@ -290,6 +327,11 @@ export function tickRoomTimers(code: string) {
 
   if (room.game === 'spy' && room.spyGame) {
     tickSpyGame(room, t)
+    return
+  }
+
+  if (room.game === 'mafia' && room.mafiaGame) {
+    tickMafiaGame(room, t)
     return
   }
 

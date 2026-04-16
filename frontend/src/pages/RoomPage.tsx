@@ -45,7 +45,7 @@ export default function RoomPage() {
   }, [roomCode])
 
   const goToPlayIfMatch = useCallback(
-    (game: 'drawing' | 'meme' | 'spy') => {
+    (game: 'drawing' | 'meme' | 'spy' | 'mafia') => {
       if (!roomCode || playRedirectDoneRef.current) return
       playRedirectDoneRef.current = true
       void navigate(playPathForRoom(roomCode, game), { replace: true })
@@ -83,9 +83,12 @@ export default function RoomPage() {
         if (res.room.createdByUserId) setCreatedByUserId(res.room.createdByUserId)
         if (
           res.room.matchActive &&
-          (res.room.game === 'drawing' || res.room.game === 'meme')
+          (res.room.game === 'drawing' ||
+            res.room.game === 'meme' ||
+            res.room.game === 'spy' ||
+            res.room.game === 'mafia')
         ) {
-          goToPlayIfMatch(res.room.game)
+          goToPlayIfMatch(res.room.game as 'drawing' | 'meme' | 'spy' | 'mafia')
         }
       } catch {
         // ignore; socket will hydrate if possible
@@ -111,8 +114,17 @@ export default function RoomPage() {
         const gRaw =
           (state.game as string | undefined) ??
           gameId ??
-          (state?.drawingGame ? 'drawing' : state?.memeGame ? 'meme' : state?.spyGame ? 'spy' : undefined)
-        if (gRaw === 'drawing' || gRaw === 'meme' || gRaw === 'spy') goToPlayIfMatch(gRaw)
+          (state?.drawingGame
+            ? 'drawing'
+            : state?.memeGame
+              ? 'meme'
+              : state?.spyGame
+                ? 'spy'
+                : state?.mafiaGame
+                  ? 'mafia'
+                  : undefined)
+        if (gRaw === 'drawing' || gRaw === 'meme' || gRaw === 'spy' || gRaw === 'mafia')
+          goToPlayIfMatch(gRaw)
       }
 
       handlePlayersSnapshot(
@@ -134,10 +146,16 @@ export default function RoomPage() {
       if (payload?.game !== 'spy') return
       void navigate(`/games/spy/play?room=${encodeURIComponent(roomCode)}`)
     }
+    const onMafiaStarted = (payload: { code?: string; game?: string }) => {
+      if (String(payload?.code ?? '').toUpperCase() !== roomCode.toUpperCase()) return
+      if (payload?.game !== 'mafia') return
+      void navigate(`/games/mafia/play?room=${encodeURIComponent(roomCode)}`)
+    }
     socket.on('room:state', onState)
     socket.on('game:drawing:started', onGameStarted)
     socket.on('game:meme:started', onMemeStarted)
     socket.on('game:spy:started', onSpyStarted)
+    socket.on('game:mafia:started', onMafiaStarted)
 
     if (!ready) return
     if (!principal) {
@@ -158,6 +176,7 @@ export default function RoomPage() {
       socket.off('game:drawing:started', onGameStarted)
       socket.off('game:meme:started', onMemeStarted)
       socket.off('game:spy:started', onSpyStarted)
+      socket.off('game:mafia:started', onMafiaStarted)
     }
   }, [roomCode, principal, ready, navigate, goToPlayIfMatch, handlePlayersSnapshot])
 
@@ -387,6 +406,32 @@ export default function RoomPage() {
                     ? 'Need 3+ players'
                     : players.length > 10
                       ? 'Max 10 players'
+                      : 'Start match'}
+                </Button>
+              ) : (
+                <p className="text-center text-sm text-muted">
+                  Only the room host can start the match.
+                </p>
+              )
+            ) : game?.id === 'mafia' ? (
+              isHost ? (
+                <Button
+                  variant="teal"
+                  size="lg"
+                  className="w-full justify-center"
+                  type="button"
+                  disabled={players.length < 5 || players.length > 12}
+                  onClick={() => {
+                    const socket = getSocket()
+                    if (!socket.connected) socket.connect()
+                    socket.emit('game:mafia:start')
+                    void navigate(`/games/mafia/play?room=${encodeURIComponent(roomCode ?? '')}`)
+                  }}
+                >
+                  {players.length < 5
+                    ? 'Need 5+ players'
+                    : players.length > 12
+                      ? 'Max 12 players'
                       : 'Start match'}
                 </Button>
               ) : (

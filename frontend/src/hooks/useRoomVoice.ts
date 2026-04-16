@@ -34,8 +34,10 @@ export function useRoomVoice(opts: {
   myPlayerId: string | null
   peers: VoicePeer[]
   enabled: boolean
+  /** When true, no audio in or out (e.g. Mafia night) without dropping the mesh. */
+  silenceAll?: boolean
 }) {
-  const { roomCode, myPlayerId, peers, enabled } = opts
+  const { roomCode, myPlayerId, peers, enabled, silenceAll = false } = opts
 
   const [status, setStatus] = useState<RoomVoiceStatus>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -55,6 +57,8 @@ export function useRoomVoice(opts: {
   const myIdRef = useRef<string | null>(null)
   const signalBufferRef = useRef<{ fromPlayerId: string; signal: VoiceSignalWire }[]>([])
   const armedRef = useRef(false)
+  const silenceAllRef = useRef(false)
+  silenceAllRef.current = silenceAll
 
   const peerIds = useMemo(
     () => sortPeerIds(peers.map((p) => p.id).filter((id) => id && id !== myPlayerId)),
@@ -65,9 +69,16 @@ export function useRoomVoice(opts: {
   useEffect(() => {
     if (!localStreamRef.current) return
     localStreamRef.current.getAudioTracks().forEach((t) => {
-      t.enabled = !muted
+      t.enabled = !silenceAll && !muted
     })
-  }, [muted])
+  }, [muted, silenceAll])
+
+  useEffect(() => {
+    if (!enabled) return
+    remoteAudioRef.current.forEach((a) => {
+      a.volume = silenceAll ? 0 : 1
+    })
+  }, [enabled, silenceAll])
 
   useEffect(() => {
     myIdRef.current = myPlayerId
@@ -155,6 +166,7 @@ export function useRoomVoice(opts: {
         }
         const audio = new Audio()
         audio.autoplay = true
+        audio.volume = silenceAllRef.current ? 0 : 1
         audio.srcObject = stream
         remoteAudioRef.current.set(peerId, audio)
         void audio.play().catch(() => {
@@ -237,7 +249,7 @@ export function useRoomVoice(opts: {
         }
         localStreamRef.current = stream
         stream.getAudioTracks().forEach((t) => {
-          t.enabled = !mutedRef.current
+          t.enabled = !silenceAllRef.current && !mutedRef.current
         })
 
         armedRef.current = true

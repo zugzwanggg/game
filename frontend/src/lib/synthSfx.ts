@@ -70,3 +70,20 @@ export function playSpyCallVoteSfx(): void {
   beep(560, 40, 0.1, 'square')
   window.setTimeout(() => beep(780, 45, 0.1, 'sine'), 55)
 }
+
+/** Mafia: kill vote or town vote registered (local action). */
+export function playMafiaVoteSfx(): void {
+  beep(680, 40, 0.1)
+}
+
+/** Mafia: public dawn / vote reveal modal opens. */
+export function playMafiaRevealPopupSfx(): void {
+  beep(440, 28, 0.08)
+  window.setTimeout(() => beep(660, 45, 0.11), 40)
+}
+
+/** Mafia: detective private investigation result modal. */
+export function playMafiaPrivatePopupSfx(): void {
+  beep(520, 35, 0.09)
+  window.setTimeout(() => beep(780, 38, 0.1), 55)
+}

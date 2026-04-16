@@ -9,6 +9,19 @@ import { normalizeGuess, pickRandomWord, toHint } from './games/drawing/words.js
 import { startMemeMatch } from './games/meme/engine.js'
 import { sanitizeMemeGif } from './games/meme/sanitize.js'
 import { castSpyVote, requestEarlyVote, spyGuess, startSpyMatch } from './games/spy/engine.js'
+import {
+  MAFIA_GHOST_CHAT,
+  MAFIA_MAX,
+  MAFIA_MIN,
+  startMafiaMatch,
+  tryDayVote,
+  tryDetectiveInvestigate,
+  tryDoctorSave,
+  tryMafiaKillVote,
+  tryDetectiveKill,
+  requestMafiaDaySkip,
+  requestNightSkip,
+} from './games/mafia/engine.js'
 import { getCorsOrigins } from './corsOrigins.js'
 
 let io: Server | null = null
@@ -16,6 +29,7 @@ let io: Server | null = null
 const startedTurnByRoom = new Map<string, string>()
 const revealedTurnByRoom = new Map<string, string>()
 const startedSpyByRoom = new Map<string, number>()
+const startedMafiaByRoom = new Map<string, number>()
 
 export function initSocket(httpServer: HttpServer): Server {
   io = new Server(httpServer, {
@@ -95,6 +109,40 @@ export function initSocket(httpServer: HttpServer): Server {
       }
     }
 
+    const emitMafiaRole = (room: any, targetPlayerId: string, sock: any, opts?: { force?: boolean }) => {
+      const g = room.mafiaGame
+      if (!g || room.game !== 'mafia') return
+      if (!g.matchId || g.status === 'lobby') return
+      const last = (sock.data as any).lastMafiaRoleMatchIdSent as number | undefined
+      if (!opts?.force && last === g.matchId) return
+      ;(sock.data as any).lastMafiaRoleMatchIdSent = g.matchId
+      const role = g.roles[targetPlayerId]
+      if (!role) {
+        sock.emit('game:mafia:role', { role: null as null })
+        return
+      }
+      if (role === 'mafia') {
+        const teammateIds = Object.entries(g.roles)
+          .filter(([id, r]) => r === 'mafia' && id !== targetPlayerId)
+          .map(([id]) => id)
+        sock.emit('game:mafia:role', { role: 'mafia' as const, teammateIds })
+      } else {
+        sock.emit('game:mafia:role', { role })
+      }
+    }
+
+    const emitMafiaRolesToRoom = (code: string, room: any) => {
+      const g = room.mafiaGame
+      if (!g || room.game !== 'mafia') return
+      if (!g.matchId || g.status === 'lobby') return
+      for (const s of io!.sockets.sockets.values()) {
+        if (!s.rooms?.has(code)) continue
+        const pid = (s.data as any).playerId as string | undefined
+        if (!pid) continue
+        emitMafiaRole(room, pid, s)
+      }
+    }
+
     const emitRoomState = (code: string) => {
       const room = getRoom(code)
       if (!room) return
@@ -142,7 +190,74 @@ export function initSocket(httpServer: HttpServer): Server {
           ? Math.max(0, Math.ceil((sg.spyGuessEndsAt - now) / 1000))
           : 0
 
-      io!.to(code).emit('room:state', {
+      const mfg = room.mafiaGame
+      const mafiaNightSecLeft =
+        mfg?.status === 'night' && mfg.nightEndsAt != null
+          ? Math.max(0, Math.ceil((mfg.nightEndsAt - now) / 1000))
+          : 0
+      const mafiaDaySecLeft =
+        mfg?.status === 'day' && mfg.dayEndsAt != null
+          ? Math.max(0, Math.ceil((mfg.dayEndsAt - now) / 1000))
+          : 0
+      const mafiaVoteSecLeft =
+        mfg?.status === 'voting' && mfg.voteEndsAt != null
+          ? Math.max(0, Math.ceil((mfg.voteEndsAt - now) / 1000))
+          : 0
+      const mafiaResultsSecLeft =
+        mfg?.status === 'results' && mfg.resultsEndsAt != null
+          ? Math.max(0, Math.ceil((mfg.resultsEndsAt - now) / 1000))
+          : 0
+
+      const mafiaGamePublic =
+        mfg && room.game === 'mafia'
+          ? mfg.status === 'results'
+            ? {
+                matchId: mfg.matchId,
+                round: mfg.round,
+                status: mfg.status,
+                alive: mfg.alive,
+                phaseEndsAt: mfg.phaseEndsAt,
+                resultsEndsAt: mfg.resultsEndsAt,
+                winner: mfg.winner,
+                lastAnnouncement: mfg.lastAnnouncement,
+                roles: { ...mfg.roles },
+              }
+            : {
+                matchId: mfg.matchId,
+                round: mfg.round,
+                status: mfg.status,
+                alive: mfg.alive,
+                phaseEndsAt: mfg.phaseEndsAt,
+                nightEndsAt: mfg.nightEndsAt,
+                dayEndsAt: mfg.dayEndsAt,
+                voteEndsAt: mfg.voteEndsAt,
+                resultsEndsAt: mfg.resultsEndsAt,
+                winner: mfg.winner,
+                lastAnnouncement: mfg.lastAnnouncement,
+                mafiaKillVoteCount: Object.keys(mfg.mafiaKillVotes ?? {}).length,
+                dayVoteCount: Object.keys(mfg.dayVotes ?? {}).length,
+                daySkipYesCount: Object.keys(mfg.daySkipYes ?? {}).filter(
+                  (id) => mfg.daySkipYes[id] && mfg.alive[id],
+                ).length,
+                nightSkipYesCount: Object.keys(mfg.nightSkipYes ?? {}).filter(
+                  (id) => mfg.nightSkipYes[id] && mfg.alive[id],
+                ).length,
+                nightActorsRequiredCount: (() => {
+                  const mafiaAlive = Object.entries(mfg.roles).filter(
+                    ([id, r]) => r === 'mafia' && mfg.alive[id],
+                  ).length
+                  const doc = Object.entries(mfg.roles).some(
+                    ([id, r]) => r === 'doctor' && mfg.alive[id],
+                  )
+                  const det = Object.entries(mfg.roles).some(
+                    ([id, r]) => r === 'detective' && mfg.alive[id],
+                  )
+                  return mafiaAlive + (doc ? 1 : 0) + (det ? 1 : 0)
+                })(),
+              }
+          : undefined
+
+      const roomStateBase = {
         code: room.code,
         game: room.game,
         createdByUserId: room.createdByUserId,
@@ -151,6 +266,7 @@ export function initSocket(httpServer: HttpServer): Server {
         chat: room.chat.slice(-100),
         round: room.round,
         memeGame: mg,
+        mafiaGame: mafiaGamePublic,
         spyGame: sg
           ? sg.status === 'reveal'
             ? {
@@ -201,8 +317,39 @@ export function initSocket(httpServer: HttpServer): Server {
           spyDiscussionSecLeft,
           spyVoteSecLeft,
           spyGuessSecLeft,
+          mafiaNightSecLeft,
+          mafiaDaySecLeft,
+          mafiaVoteSecLeft,
+          mafiaResultsSecLeft,
         },
-      })
+      }
+
+      const roomSockets = io!.sockets.adapter.rooms.get(code)
+      if (roomSockets && roomSockets.size > 0) {
+        for (const socketId of roomSockets) {
+          const s = io!.sockets.sockets.get(socketId)
+          if (!s) continue
+          const pid = (s.data as any).playerId as string | undefined
+          s.emit('room:state', { ...roomStateBase, youPlayerId: pid ?? null })
+        }
+      } else {
+        io!.to(code).emit('room:state', { ...roomStateBase, youPlayerId: null })
+      }
+
+      // Mafia: detective learns investigation result at dawn (private, not in room state).
+      if (room.game === 'mafia' && room.mafiaGame?.pendingDetectiveReveal) {
+        const pr = room.mafiaGame.pendingDetectiveReveal
+        for (const s of io!.sockets.sockets.values()) {
+          if (!s.rooms?.has(code)) continue
+          const pid = (s.data as any).playerId as string | undefined
+          if (pid !== pr.detectiveId) continue
+          s.emit('game:mafia:investigate_reveal', {
+            targetPlayerId: pr.targetId,
+            role: pr.role,
+          })
+        }
+        room.mafiaGame.pendingDetectiveReveal = null
+      }
 
       // Broadcast transitions and deliver secret word to drawer.
       if (room.game === 'drawing' && dg) {
@@ -243,6 +390,28 @@ export function initSocket(httpServer: HttpServer): Server {
         }
         // Private role delivery (safe to attempt every tick; per-socket dedup).
         emitSpyRolesToRoom(code, room as any)
+      }
+
+      if (room.game === 'mafia' && mfg && mfg.status !== 'lobby') {
+        const last = startedMafiaByRoom.get(code) ?? 0
+        if (mfg.matchId !== last) {
+          startedMafiaByRoom.set(code, mfg.matchId)
+          io!.to(code).emit('game:mafia:started', { code, game: 'mafia' as const })
+        }
+        emitMafiaRolesToRoom(code, room as any)
+      }
+
+      if (room.game === 'mafia' && mfg && mfg.status === 'night') {
+        const docId = Object.entries(mfg.roles).find(([, r]) => r === 'doctor')?.[0]
+        if (docId && mfg.alive[docId]) {
+          const cannotProtectPlayerId = mfg.doctorPreviousNightProtectTarget ?? null
+          for (const s of io!.sockets.sockets.values()) {
+            if (!s.rooms?.has(code)) continue
+            const pid = (s.data as any).playerId as string | undefined
+            if (pid !== docId) continue
+            s.emit('game:mafia:doctor_restriction', { cannotProtectPlayerId })
+          }
+        }
       }
     }
 
@@ -319,6 +488,15 @@ export function initSocket(httpServer: HttpServer): Server {
           room.spyGame.matchId
         ) {
           emitSpyRole(room as any, playerId, socket as any)
+        }
+
+        if (
+          room.game === 'mafia' &&
+          room.mafiaGame &&
+          room.mafiaGame.status !== 'lobby' &&
+          room.mafiaGame.matchId
+        ) {
+          emitMafiaRole(room as any, playerId, socket as any)
         }
       },
     )
@@ -460,6 +638,161 @@ export function initSocket(httpServer: HttpServer): Server {
       emitSpyRole(room as any, pid, socket as any, { force: true })
     })
 
+    socket.on('game:mafia:start', () => {
+      if (!joinedCode) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'mafia' || !room.mafiaGame) return
+      const principal = (socket.data as any).principal as
+        | { kind: 'user' | 'guest'; id: string }
+        | undefined
+      if (!principal || principal.kind !== 'user' || principal.id !== room.createdByUserId) return
+      if (room.players.length < MAFIA_MIN || room.players.length > MAFIA_MAX) return
+      room.chat = []
+      startMafiaMatch(room, Date.now())
+      touchRoom(joinedCode)
+      io!.to(joinedCode).emit('chat:clear')
+      emitMafiaRolesToRoom(joinedCode, room as any)
+      io!.to(joinedCode).emit('game:mafia:started', { code: joinedCode, game: 'mafia' as const })
+      emitRoomState(joinedCode)
+    })
+
+    socket.on('game:mafia:day_skip', () => {
+      if (!joinedCode || !joinedPlayerId) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'mafia' || !room.mafiaGame) return
+      const g = room.mafiaGame
+      if (g.status !== 'day') return
+      if (g.daySkipYes[joinedPlayerId]) return
+      const aliveCount = Object.keys(g.alive).filter((id) => g.alive[id]).length
+      const caller = room.players.find((p) => p.id === joinedPlayerId)
+      const name = caller?.displayName ?? 'Player'
+      requestMafiaDaySkip(room, joinedPlayerId, Date.now())
+      const g2 = room.mafiaGame!
+      if (g2.status === 'voting') {
+        io!.to(joinedCode).emit('chat:message', {
+          id: crypto.randomUUID(),
+          author: 'Game',
+          text: `${name} asked to skip — voting begins (majority ready).`,
+          ts: Date.now(),
+          variant: 'system',
+        })
+      } else {
+        const yes = Object.keys(g2.daySkipYes).filter((id) => g2.daySkipYes[id] && g2.alive[id]).length
+        io!.to(joinedCode).emit('chat:message', {
+          id: crypto.randomUUID(),
+          author: 'Game',
+          text: `${name} asked to skip to vote (${yes}/${aliveCount})`,
+          ts: Date.now(),
+          variant: 'system',
+        })
+      }
+      touchRoom(joinedCode)
+      emitRoomState(joinedCode)
+    })
+
+    socket.on('game:mafia:kill_vote', (payload: { targetPlayerId?: string }) => {
+      if (!joinedCode || !joinedPlayerId) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'mafia' || !room.mafiaGame) return
+      const target = String(payload?.targetPlayerId ?? '').trim()
+      if (!target) return
+      if (tryMafiaKillVote(room, joinedPlayerId, target)) {
+        touchRoom(joinedCode)
+        emitRoomState(joinedCode)
+      }
+    })
+
+    socket.on('game:mafia:night_skip', () => {
+      if (!joinedCode || !joinedPlayerId) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'mafia' || !room.mafiaGame) return
+      const ok = requestNightSkip(room, joinedPlayerId, Date.now())
+      if (!ok) return
+      const g2 = room.mafiaGame!
+      // Do not reveal names or faction counts in public chat; only announce when the phase changes.
+      if (g2.status === 'day') {
+        io!.to(joinedCode).emit('chat:message', {
+          id: crypto.randomUUID(),
+          author: 'Game',
+          text: 'Morning comes — the night ended early.',
+          ts: Date.now(),
+          variant: 'system',
+        })
+      } else if (g2.status === 'results') {
+        io!.to(joinedCode).emit('chat:message', {
+          id: crypto.randomUUID(),
+          author: 'Game',
+          text: 'The night ends.',
+          ts: Date.now(),
+          variant: 'system',
+        })
+      }
+      touchRoom(joinedCode)
+      emitRoomState(joinedCode)
+    })
+
+    socket.on('game:mafia:doctor_save', (payload: { targetPlayerId?: string }) => {
+      if (!joinedCode || !joinedPlayerId) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'mafia' || !room.mafiaGame) return
+      const target = String(payload?.targetPlayerId ?? '').trim()
+      if (!target) return
+      if (tryDoctorSave(room, joinedPlayerId, target)) {
+        socket.emit('game:mafia:doctor_save_ack', { targetPlayerId: target })
+        touchRoom(joinedCode)
+        emitRoomState(joinedCode)
+      }
+    })
+
+    socket.on('game:mafia:detective_investigate', (payload: { targetPlayerId?: string }) => {
+      if (!joinedCode || !joinedPlayerId) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'mafia' || !room.mafiaGame) return
+      const target = String(payload?.targetPlayerId ?? '').trim()
+      if (!target) return
+      const res = tryDetectiveInvestigate(room, joinedPlayerId, target)
+      if (res.ok) {
+        socket.emit('game:mafia:detective_check_ack', { targetPlayerId: target })
+        touchRoom(joinedCode)
+        emitRoomState(joinedCode)
+      }
+    })
+
+    socket.on('game:mafia:detective_kill', (payload: { targetPlayerId?: string }) => {
+      if (!joinedCode || !joinedPlayerId) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'mafia' || !room.mafiaGame) return
+      const target = String(payload?.targetPlayerId ?? '').trim()
+      if (!target) return
+      if (tryDetectiveKill(room, joinedPlayerId, target)) {
+        socket.emit('game:mafia:detective_kill_ack', { targetPlayerId: target })
+        touchRoom(joinedCode)
+        emitRoomState(joinedCode)
+      }
+    })
+
+    socket.on('game:mafia:day_vote', (payload: { targetPlayerId?: string }) => {
+      if (!joinedCode || !joinedPlayerId) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'mafia' || !room.mafiaGame) return
+      const target = String(payload?.targetPlayerId ?? '').trim()
+      if (!target) return
+      if (tryDayVote(room, joinedPlayerId, target)) {
+        touchRoom(joinedCode)
+        emitRoomState(joinedCode)
+      }
+    })
+
+    socket.on('game:mafia:role:request', () => {
+      if (!joinedCode) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'mafia' || !room.mafiaGame) return
+      if (room.mafiaGame.status === 'lobby') return
+      const pid = joinedPlayerId ?? ((socket.data as any).playerId as string | undefined)
+      if (!pid) return
+      emitMafiaRole(room as any, pid, socket as any, { force: true })
+    })
+
     socket.on('game:meme:context_vote', (payload: { promptIndex?: number }) => {
       if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
@@ -509,6 +842,8 @@ export function initSocket(httpServer: HttpServer): Server {
           deleteRoom(code)
           startedTurnByRoom.delete(code)
           revealedTurnByRoom.delete(code)
+          startedSpyByRoom.delete(code)
+          startedMafiaByRoom.delete(code)
         } else {
           applyPlayerLeftRoom(room)
           touchRoom(code)
@@ -550,6 +885,23 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!room) return
       const text = String(payload?.text ?? '').trim().slice(0, 240)
       if (!text) return
+
+      if (room.game === 'mafia' && room.mafiaGame) {
+        const g = room.mafiaGame
+        if (g.status === 'night') {
+          if (!joinedPlayerId) return
+          if (g.roles[joinedPlayerId] !== 'detective' || g.alive[joinedPlayerId] !== true) return
+        }
+        if (g.status === 'day' || g.status === 'voting') {
+          if (!joinedPlayerId) return
+          const alive = g.alive[joinedPlayerId] === true
+          if (!alive) {
+            const dead = g.alive[joinedPlayerId] === false
+            if (!dead || !MAFIA_GHOST_CHAT) return
+          }
+        }
+      }
+
       const player = room.players.find((p) => p.id === joinedPlayerId)
       const author = player?.displayName ?? 'Player'
       let variant: 'chat' | 'correct' = 'chat'
@@ -635,6 +987,8 @@ export function initSocket(httpServer: HttpServer): Server {
         deleteRoom(code)
         startedTurnByRoom.delete(code)
         revealedTurnByRoom.delete(code)
+        startedSpyByRoom.delete(code)
+        startedMafiaByRoom.delete(code)
       } else {
         applyPlayerLeftRoom(room)
         touchRoom(code)
