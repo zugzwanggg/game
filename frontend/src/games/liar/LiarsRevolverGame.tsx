@@ -264,6 +264,7 @@ export default function LiarsRevolverGame() {
   const showMyHand = Boolean(
     playerId && liar?.status === 'playing' && !liar.revolvers[playerId]?.eliminated,
   )
+  const showActionRails = Boolean(playerId && liar?.status === 'playing')
 
   const playCards = () => {
     if (!canPlay || selected.size < 1) return
@@ -386,8 +387,8 @@ export default function LiarsRevolverGame() {
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain p-2 sm:gap-3 sm:p-3 lg:flex-row lg:gap-4 lg:overflow-hidden lg:p-4">
         <section className="relative flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-visible rounded-2xl border border-border bg-surface/80 p-2 sm:p-3 lg:min-h-0 lg:overflow-hidden">
           {/* Table row: on phone, Play / Call Liar sit beside the felt (hidden lg+). */}
-          <div className="mb-1 flex flex-row items-stretch gap-1 sm:mb-2 sm:gap-2 lg:mb-2">
-            {showMyHand && (
+          <div className="mb-1 flex flex-row items-center gap-1 sm:mb-2 sm:gap-2 lg:mb-2 lg:block">
+            {showActionRails && (
               <div className="flex w-[3.75rem] shrink-0 flex-col justify-center gap-2 lg:hidden">
                 <Button
                   type="button"
@@ -407,7 +408,7 @@ export default function LiarsRevolverGame() {
               </div>
             )}
             {/* Square viewport so % left / % top share one scale (circle, not ellipse). */}
-            <div className="relative mx-auto mb-0 aspect-square min-w-0 w-full max-h-[min(40vh,380px)] max-w-[640px] flex-1 sm:max-h-[min(46vh,460px)] lg:mb-1 lg:max-h-[min(52vh,520px)]">
+            <div className="relative mx-auto mb-0 aspect-square min-w-0 w-full max-h-[min(52vh,520px)] max-w-[640px] flex-1 sm:max-h-[min(46vh,460px)] lg:mb-1 lg:max-h-[min(52vh,520px)] lg:flex-none">
             {/* Table */}
             <div className="absolute inset-[20%] rounded-full border-2 border-border/80 bg-base/90 shadow-[inset_0_0_40px_rgba(0,0,0,0.35)] sm:inset-[18%]" />
 
@@ -491,23 +492,9 @@ export default function LiarsRevolverGame() {
                 </span>
               </div>
 
-              {liar?.phase === 'bluff' && liar.lastPlay && (
-                <div className="max-w-[min(260px,calc(100vw-2rem))] rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-center text-[11px] text-amber-50 sm:px-3 sm:py-2 sm:text-xs">
-                  <p className="font-semibold">
-                    {nameById.get(liar.lastPlay.playerId) ?? 'Player'} claims{' '}
-                    <span className="text-amber-200">
-                      {liar.lastPlay.claimedCount} × {liar.lastPlay.claimedRank}
-                    </span>
-                  </p>
-                  <p className="mt-1 text-[10px] text-amber-100/90">
-                    Bluff window: {bluffSec}s · played {liar.lastPlay.playedCount} card
-                    {liar.lastPlay.playedCount === 1 ? '' : 's'} face down
-                  </p>
-                </div>
-              )}
-
-              {liar?.resolving && (
-                <div className="max-w-[min(220px,calc(100vw-2rem))] rounded-xl border border-sky-500/40 bg-sky-500/10 px-2 py-2 text-center text-[11px] text-sky-50 sm:px-3 sm:text-xs">
+              {/* Mobile/desktop: show ONE status panel at a time so text never overlaps. */}
+              {liar?.resolving ? (
+                <div className="max-w-[min(240px,calc(100vw-2.5rem))] rounded-xl border border-sky-500/40 bg-sky-500/10 px-2 py-2 text-center text-[11px] leading-snug text-sky-50 sm:max-w-[min(320px,90vw)] sm:px-3 sm:text-xs">
                   <p className="mb-1 text-[10px] text-sky-200/90">
                     Claimed {liar.resolving.claimedCount} × {liar.resolving.claimedRank}
                   </p>
@@ -526,9 +513,20 @@ export default function LiarsRevolverGame() {
                     ))}
                   </div>
                 </div>
-              )}
-
-              {liar?.shotResult && (
+              ) : liar?.phase === 'bluff' && liar.lastPlay ? (
+                <div className="max-w-[min(260px,calc(100vw-2.5rem))] rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-center text-[11px] leading-snug text-amber-50 sm:max-w-[min(360px,90vw)] sm:px-3 sm:py-2 sm:text-xs">
+                  <p className="font-semibold">
+                    {nameById.get(liar.lastPlay.playerId) ?? 'Player'} claims{' '}
+                    <span className="text-amber-200">
+                      {liar.lastPlay.claimedCount} × {liar.lastPlay.claimedRank}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-[10px] text-amber-100/90">
+                    Bluff window: {bluffSec}s · played {liar.lastPlay.playedCount} card
+                    {liar.lastPlay.playedCount === 1 ? '' : 's'} face down
+                  </p>
+                </div>
+              ) : liar?.shotResult ? (
                 <div
                   className={`rounded-lg px-3 py-2 text-center text-sm font-bold ${
                     liar.shotResult.outcome === 'bang'
@@ -539,10 +537,10 @@ export default function LiarsRevolverGame() {
                   {liar.shotResult.outcome === 'bang' ? 'BANG' : 'CLICK'} ·{' '}
                   {nameById.get(liar.shotResult.playerId) ?? 'Player'}
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
-            {showMyHand && (
+            {showActionRails && (
               <div className="flex w-[3.75rem] shrink-0 flex-col justify-center gap-2 lg:hidden">
                 <Button
                   type="button"
