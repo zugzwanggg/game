@@ -35,6 +35,13 @@ function getApiPublicOrigin(): string {
   /** Render sets this to the service’s public HTTPS URL (e.g. https://foo.onrender.com). */
   const render = process.env.RENDER_EXTERNAL_URL?.trim()
   if (render) return render.replace(/\/$/, '')
+  /** Railway: hostname only (e.g. my-api.up.railway.app) — public traffic is HTTPS. */
+  const railway = process.env.RAILWAY_PUBLIC_DOMAIN?.trim()
+  if (railway) {
+    const host = railway.replace(/\/$/, '')
+    if (/^https?:\/\//i.test(host)) return host.replace(/\/$/, '')
+    return `https://${host.replace(/^\/+/, '')}`
+  }
   const port = Number(process.env.PORT) || 3000
   return `http://localhost:${port}`
 }
