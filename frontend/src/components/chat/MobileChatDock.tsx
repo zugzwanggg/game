@@ -12,6 +12,8 @@ type MobileChatDockProps = {
   composer: ReactNode
   /** Bumps when chat updates (e.g. `${messages.length}:${lastId}`) to auto-scroll the sheet. */
   scrollToBottomKey: string | number
+  /** Shown inside the bottom bar, absolute right (e.g. room voice). Only visible below `lg`. */
+  endAccessory?: ReactNode
 }
 
 /**
@@ -26,6 +28,7 @@ export function MobileChatDock({
   messages,
   composer,
   scrollToBottomKey,
+  endAccessory,
 }: MobileChatDockProps) {
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -77,8 +80,10 @@ export function MobileChatDock({
             </div>
           </div>
         )}
-        <div className="pointer-events-auto border-t border-zinc-200/90 bg-white/98 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_28px_rgba(0,0,0,0.12)] backdrop-blur-md">
-          <div className="mx-auto flex max-w-lg items-end gap-2">
+        <div className="pointer-events-auto relative border-t border-zinc-200/90 bg-white/98 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_28px_rgba(0,0,0,0.12)] backdrop-blur-md">
+          <div
+            className={`mx-auto flex max-w-lg items-end gap-2 ${endAccessory ? 'max-lg:pr-[3.25rem]' : ''}`}
+          >
             <button
               type="button"
               onClick={() => onExpandedChange(!expanded)}
@@ -91,6 +96,11 @@ export function MobileChatDock({
             </button>
             <div className="min-w-0 flex-1">{composer}</div>
           </div>
+          {endAccessory ? (
+            <div className="pointer-events-auto absolute right-2 top-1/2 z-[1] -translate-y-1/2 lg:hidden">
+              {endAccessory}
+            </div>
+          ) : null}
         </div>
       </div>
     </>

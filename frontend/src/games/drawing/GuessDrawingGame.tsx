@@ -14,6 +14,7 @@ import Button from '../../components/ui/Button'
 import { RoomPresenceBanner } from '../../components/ui/RoomPresenceBanner'
 import { RoomVoiceDock } from '../../components/voice/RoomVoiceDock'
 import { chatListScrollKey, useChatScrollToBottom } from '../../hooks/useChatScrollToBottom'
+import { useMediaQueryLg } from '../../hooks/useMediaQueryLg'
 import { useRoomPresenceNotification } from '../../hooks/useRoomPresenceNotification'
 import { playCorrectGuessSfx } from '../../lib/playCorrectGuessSfx'
 import { removeRecentRoom } from '../../lib/recentRooms'
@@ -213,6 +214,7 @@ export default function GuessDrawingGame() {
 
   const { payload: presencePayload, handlePlayersSnapshot, dismiss: dismissPresence } =
     useRoomPresenceNotification(isOnline && roomCode ? roomCode : null)
+  const lgUp = useMediaQueryLg()
 
   const [brushColor, setBrushColor] = useState<string>(DEFAULT_BRUSH)
   const brushColorRef = useRef(brushColor)
@@ -837,19 +839,23 @@ export default function GuessDrawingGame() {
         )}
       </div>
 
-      <div className="mb-4 max-w-md">
-        {isOnline && roomCode && playerId ? (
-          <RoomVoiceDock
-            roomCode={roomCode}
-            myPlayerId={playerId}
-            players={voicePlayers}
-          />
-        ) : (
-          <div className="rounded-xl border border-zinc-200/90 bg-white/95 px-3 py-2.5 text-sm text-zinc-600 shadow-sm backdrop-blur-sm">
-            Room voice is available when you play online in a shared room.
+      {lgUp ? (
+        isOnline && roomCode && playerId ? (
+          <div className="mb-4 max-w-md">
+            <RoomVoiceDock
+              roomCode={roomCode}
+              myPlayerId={playerId}
+              players={voicePlayers}
+            />
           </div>
-        )}
-      </div>
+        ) : (
+          <div className="mb-4 max-w-md">
+            <div className="rounded-xl border border-zinc-200/90 bg-white/95 px-3 py-2.5 text-sm text-zinc-600 shadow-sm backdrop-blur-sm">
+              Room voice is available when you play online in a shared room.
+            </div>
+          </div>
+        )
+      ) : null}
 
       <div
         className={`grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-5 lg:gap-6 ${MOBILE_CHAT_DOCK_PAD_CLASS}`}
@@ -1113,6 +1119,15 @@ export default function GuessDrawingGame() {
         expanded={mobileGuessesOpen}
         onExpandedChange={setMobileGuessesOpen}
         scrollToBottomKey={guessesScrollKey}
+        endAccessory={
+          !lgUp && isOnline && roomCode && playerId ? (
+            <RoomVoiceDock
+              roomCode={roomCode}
+              myPlayerId={playerId}
+              players={voicePlayers}
+            />
+          ) : undefined
+        }
         messages={<div className="space-y-2">{guessesMessageList}</div>}
         composer={
           role === 'guesser' && !roundSolved && gamePhase === 'playing' ? (

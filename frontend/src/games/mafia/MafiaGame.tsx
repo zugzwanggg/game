@@ -18,6 +18,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { MobileChatDock, MOBILE_CHAT_DOCK_PAD_CLASS } from '../../components/chat/MobileChatDock'
 import { chatListScrollKey, useChatScrollToBottom } from '../../hooks/useChatScrollToBottom'
+import { useMediaQueryLg } from '../../hooks/useMediaQueryLg'
 import Avatar from '../../components/ui/Avatar'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -243,6 +244,7 @@ export default function MafiaGame() {
 
   const mafiaChatScrollKey = useMemo(() => chatListScrollKey(messages), [messages])
   const mafiaDesktopChatRef = useChatScrollToBottom(mafiaChatScrollKey)
+  const lgUp = useMediaQueryLg()
 
   const mafiaTeamSize =
     role?.role === 'mafia' ? 1 + (role.teammateIds?.length ?? 0) : 0
@@ -681,14 +683,16 @@ export default function MafiaGame() {
         </div>
       )}
 
-      <div className="mb-4 max-w-2xl shrink-0">
-        <RoomVoiceDock
-          roomCode={roomCode}
-          myPlayerId={playerId}
-          players={players.map((p) => ({ id: p.id, displayName: p.displayName }))}
-          silenceAll={status === 'night'}
-        />
-      </div>
+      {lgUp ? (
+        <div className="mb-4 max-w-2xl shrink-0">
+          <RoomVoiceDock
+            roomCode={roomCode}
+            myPlayerId={playerId}
+            players={players.map((p) => ({ id: p.id, displayName: p.displayName }))}
+            silenceAll={status === 'night'}
+          />
+        </div>
+      ) : null}
 
       <div className="mb-3 flex shrink-0 gap-2 lg:hidden">
         {[
@@ -1301,6 +1305,16 @@ export default function MafiaGame() {
         expanded={mobileChatOpen}
         onExpandedChange={setMobileChatOpen}
         scrollToBottomKey={mafiaChatScrollKey}
+        endAccessory={
+          lgUp ? undefined : (
+            <RoomVoiceDock
+              roomCode={roomCode}
+              myPlayerId={playerId}
+              players={players.map((p) => ({ id: p.id, displayName: p.displayName }))}
+              silenceAll={status === 'night'}
+            />
+          )
+        }
         messages={<div className="space-y-2">{mafiaChatMessageList}</div>}
         composer={
           <form className="flex w-full gap-2" onSubmit={sendChat}>

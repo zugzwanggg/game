@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { MobileChatDock, MOBILE_CHAT_DOCK_PAD_CLASS } from '../../components/chat/MobileChatDock'
 import { chatListScrollKey, useChatScrollToBottom } from '../../hooks/useChatScrollToBottom'
+import { useMediaQueryLg } from '../../hooks/useMediaQueryLg'
 import Avatar from '../../components/ui/Avatar'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -268,6 +269,7 @@ export default function SpyGame() {
 
   const spyChatScrollKey = useMemo(() => chatListScrollKey(messages), [messages])
   const spyDesktopChatRef = useChatScrollToBottom(spyChatScrollKey)
+  const lgUp = useMediaQueryLg()
 
   if (!isOnline || !roomCode) {
     return (
@@ -347,13 +349,15 @@ export default function SpyGame() {
         )}
       </div>
 
-      <div className="mb-4 max-w-2xl">
-        <RoomVoiceDock
-          roomCode={roomCode}
-          myPlayerId={playerId}
-          players={players.map((p) => ({ id: p.id, displayName: p.displayName }))}
-        />
-      </div>
+      {lgUp ? (
+        <div className="mb-4 max-w-2xl">
+          <RoomVoiceDock
+            roomCode={roomCode}
+            myPlayerId={playerId}
+            players={players.map((p) => ({ id: p.id, displayName: p.displayName }))}
+          />
+        </div>
+      ) : null}
 
       <div className="mb-3 flex gap-2 lg:hidden">
         {[
@@ -695,6 +699,15 @@ export default function SpyGame() {
         expanded={mobileChatOpen}
         onExpandedChange={setMobileChatOpen}
         scrollToBottomKey={spyChatScrollKey}
+        endAccessory={
+          lgUp ? undefined : (
+            <RoomVoiceDock
+              roomCode={roomCode}
+              myPlayerId={playerId}
+              players={players.map((p) => ({ id: p.id, displayName: p.displayName }))}
+            />
+          )
+        }
         messages={<div className="space-y-2">{spyChatMessageList}</div>}
         composer={
           <form className="flex w-full gap-2" onSubmit={sendChat}>
