@@ -32,6 +32,9 @@ function cookieOpts(ttlSec: number) {
 function getApiPublicOrigin(): string {
   const o = process.env.PUBLIC_API_ORIGIN?.trim()
   if (o) return o.replace(/\/$/, '')
+  /** Render sets this to the service’s public HTTPS URL (e.g. https://foo.onrender.com). */
+  const render = process.env.RENDER_EXTERNAL_URL?.trim()
+  if (render) return render.replace(/\/$/, '')
   const port = Number(process.env.PORT) || 3000
   return `http://localhost:${port}`
 }
