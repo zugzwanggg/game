@@ -357,7 +357,7 @@ export default function LiarsRevolverGame() {
         </div>
         {liar?.status === 'playing' && (
           <div className="text-[10px] leading-snug text-muted sm:w-auto sm:text-right sm:text-xs">
-            Round {liar.round}. Declare any rank and count on your turn.
+            Round {liar.round}
           </div>
         )}
       </div>
@@ -386,7 +386,7 @@ export default function LiarsRevolverGame() {
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain p-2 sm:gap-3 sm:p-3 lg:flex-row lg:gap-4 lg:overflow-hidden lg:p-4">
         <section className="relative flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-visible rounded-2xl border border-border bg-surface/80 p-2 sm:p-3 lg:min-h-0 lg:overflow-hidden">
-          {/* Table row: on phone, Play / Call Liar sit beside the felt (hidden lg+). */}
+          {/* Table row: on phone, Play / Call Liar sit beside the felt. */}
           <div className="mb-1 flex flex-row items-center gap-1 sm:mb-2 sm:gap-2 lg:mb-2 lg:block">
             {showActionRails && (
               <div className="flex w-[3.75rem] shrink-0 flex-col justify-center gap-2 lg:hidden">
@@ -559,18 +559,31 @@ export default function LiarsRevolverGame() {
             )}
           </div>
 
+          {/* Desktop minimal action row (keeps PC buttons visible even if the hand panel is scrolled away). */}
+          {showActionRails && (
+            <div className="mt-2 hidden items-center justify-center gap-2 lg:flex">
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                disabled={!canPlay || selected.size < 1 || selected.size > 3}
+                onClick={playCards}
+              >
+                Play
+              </Button>
+              <Button type="button" variant="teal" size="md" disabled={!canCall} onClick={callLiar}>
+                Call Liar!
+              </Button>
+            </div>
+          )}
+
           {/* My hand */}
           {showMyHand && (
             <div className="mt-2 shrink-0 border-t border-border pt-3 sm:mt-auto">
-              <p className="mb-2 px-1 text-center text-[11px] font-semibold uppercase tracking-wider text-muted">
-                <span className="lg:hidden">Tap cards, rank, count. Use Play and Call Liar beside the table.</span>
-                <span className="hidden lg:inline">
-                  Your hand: tap cards, then rank and count, then Play.
-                </span>
-              </p>
+              {/* Minimal: no instruction text */}
               <div className="mb-3 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-center sm:gap-4">
                 <div className="flex flex-col gap-1">
-                  <span className="text-center text-[10px] font-semibold uppercase text-muted">Claim rank</span>
+                  <span className="sr-only">Claim rank</span>
                   <div className="flex flex-wrap justify-center gap-1.5 sm:gap-1">
                     {LIAR_RANKS.map((r) => (
                       <button
@@ -590,7 +603,7 @@ export default function LiarsRevolverGame() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <span className="text-center text-[10px] font-semibold uppercase text-muted">Claim count</span>
+                  <span className="sr-only">Claim count</span>
                   <div className="flex justify-center gap-2 sm:gap-1">
                     {([1, 2, 3] as const).map((c) => (
                       <button
@@ -632,6 +645,7 @@ export default function LiarsRevolverGame() {
                 })}
               </div>
 
+              {/* Desktop buttons should always be visible when you have a hand. */}
               <div className="mt-3 hidden w-full flex-col gap-2 lg:flex lg:flex-row lg:flex-wrap lg:items-center lg:justify-center">
                 <Button
                   type="button"
@@ -655,18 +669,6 @@ export default function LiarsRevolverGame() {
                   Call Liar!
                 </Button>
               </div>
-              {canPlay && (
-                <p className="mt-2 text-center text-xs text-muted">
-                  Your claim ({claimedCount} × {claimedRank}) can differ from how many cards you select. Bluffing is
-                  allowed. Cards stay hidden until someone calls.
-                </p>
-              )}
-              {canCall && liar.lastPlay && (
-                <p className="mt-2 text-center text-xs text-amber-200/90">
-                  They claim {liar.lastPlay.claimedCount} × {liar.lastPlay.claimedRank}. Challenge{' '}
-                  {nameById.get(liar.lastPlay.playerId) ?? 'player'} before time runs out.
-                </p>
-              )}
             </div>
           )}
         </section>
