@@ -363,7 +363,7 @@ export default function MemeBattleGame() {
                   <p className="mb-4 text-sm text-muted">
                     Majority wins (ties break fairly). Timer can end the vote early.
                   </p>
-                  <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="mb-4 flex flex-col gap-3">
                     {[0, 1].map((idx) => {
                       const i = idx as 0 | 1
                       const mine = playerId ? meme.contextVotes[playerId] === i : false
@@ -374,13 +374,15 @@ export default function MemeBattleGame() {
                           type="button"
                           onClick={() => castContextVote(i)}
                           className={[
-                            'rounded-2xl border p-4 text-left transition-all',
+                            'rounded-2xl border p-5 text-left transition-all',
                             mine
                               ? 'border-teal/60 bg-teal/10'
                               : 'border-border bg-surface hover:border-accent/40',
                           ].join(' ')}
                         >
-                          <p className="leading-relaxed text-text">{meme.prompts[i]}</p>
+                          <p className="text-lg font-semibold leading-snug text-text sm:text-xl">
+                            {meme.prompts[i]}
+                          </p>
                           <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted">
                             <span>
                               {mine && (
@@ -407,7 +409,7 @@ export default function MemeBattleGame() {
 
               {status === 'context_result' && meme.winningPromptIndex !== null && (
                 <div className="rounded-2xl border border-teal/30 bg-teal/10 p-6 text-center">
-                  <p className="text-lg font-medium leading-relaxed text-text">
+                  <p className="text-xl font-semibold leading-snug text-text sm:text-2xl">
                     {meme.prompts[meme.winningPromptIndex]}
                   </p>
                 </div>
@@ -428,8 +430,8 @@ export default function MemeBattleGame() {
                   GIF time {formatClock(timers.memePhaseSecLeft ?? 0)}
                 </div>
               </div>
-              <div className="mb-3 rounded-xl border border-teal/30 bg-teal/10 px-4 py-3">
-                <p className="leading-relaxed text-text">
+              <div className="mb-3 rounded-xl border border-teal/30 bg-teal/10 px-4 py-4 sm:px-5 sm:py-5">
+                <p className="text-lg font-semibold leading-snug text-text sm:text-xl">
                   {meme.winningPromptIndex !== null ? meme.prompts[meme.winningPromptIndex] : '-'}
                 </p>
               </div>
@@ -546,8 +548,8 @@ export default function MemeBattleGame() {
                   )}
                 </div>
               </div>
-              <div className="mb-3 rounded-xl border border-teal/30 bg-teal/10 px-4 py-3">
-                <p className="leading-relaxed text-text">
+              <div className="mb-3 rounded-xl border border-teal/30 bg-teal/10 px-4 py-4 sm:px-5 sm:py-5">
+                <p className="text-lg font-semibold leading-snug text-text sm:text-xl">
                   {meme.winningPromptIndex !== null ? meme.prompts[meme.winningPromptIndex] : '-'}
                 </p>
               </div>
