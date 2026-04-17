@@ -123,8 +123,9 @@ export default function GameRoom() {
             <div className="mb-5 overflow-hidden rounded-2xl border border-border">
               <GameCover game={game} variant="detail" />
             </div>
-            <h1 className="mb-2 text-2xl font-extrabold text-text sm:text-3xl">
+            <h1 className="mb-2 flex flex-wrap items-center gap-2 text-2xl font-extrabold text-text sm:text-3xl">
               {game.label}
+              {game.beta && <Badge color="muted">Beta</Badge>}
             </h1>
             <p className="mb-4 text-lg font-medium text-accent">
               {game.tagline}

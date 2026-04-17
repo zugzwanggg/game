@@ -260,12 +260,15 @@ export default function RoomPage() {
       <div className="mx-auto max-w-2xl">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           {game ? (
-            <Link
-              to={`/games/${game.id}`}
-              className="text-sm font-medium text-accent hover:text-accent/80"
-            >
-              {game.label}
-            </Link>
+            <>
+              <Link
+                to={`/games/${game.id}`}
+                className="text-sm font-medium text-accent hover:text-accent/80"
+              >
+                {game.label}
+              </Link>
+              {game.beta && <Badge color="muted">Beta</Badge>}
+            </>
           ) : (
             <span className="text-sm text-muted">Room</span>
           )}

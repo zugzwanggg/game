@@ -25,7 +25,10 @@ export default function GameCard({ game }: GameCardProps) {
       <GameCover game={game} variant="card" />
 
       <div className="relative p-6">
-        <h3 className="mb-1 text-lg font-bold text-text">{game.label}</h3>
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <h3 className="text-lg font-bold text-text">{game.label}</h3>
+          {game.beta && <Badge color="muted">Beta</Badge>}
+        </div>
         <p className="mb-4 text-sm leading-relaxed text-muted">{game.tagline}</p>
 
         <div className="mb-4 flex items-center gap-3">
