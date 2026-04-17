@@ -10,7 +10,7 @@ export default function GamePlayPage() {
 
   if (gameId === 'drawing') {
     return (
-      <div className="flex min-h-0 flex-col bg-base h-dvh max-h-dvh overflow-y-auto overflow-x-hidden">
+      <div className="flex min-h-0 flex-col bg-zinc-100 h-dvh max-h-dvh overflow-y-auto overflow-x-hidden">
         <GuessDrawingGame />
       </div>
     )

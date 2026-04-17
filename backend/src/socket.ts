@@ -1114,6 +1114,20 @@ export function initSocket(httpServer: HttpServer): Server {
       socket.to(joinedCode).emit('drawing:stroke', payload)
     })
 
+    socket.on('drawing:undo', () => {
+      if (!joinedCode || !joinedPlayerId) return
+      const room = getRoom(joinedCode)
+      if (!room) return
+      if (room.game !== 'drawing' || !room.drawingGame) return
+      const dg = room.drawingGame
+      if (dg.status !== 'playing') return
+      if (dg.drawerPlayerId !== joinedPlayerId) return
+      if (room.drawing.strokes.length === 0) return
+      room.drawing.strokes.pop()
+      touchRoom(joinedCode)
+      io!.to(joinedCode).emit('drawing:undo')
+    })
+
     socket.on('drawing:clear', () => {
       if (!joinedCode) return
       const room = getRoom(joinedCode)

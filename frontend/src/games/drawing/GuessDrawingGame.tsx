@@ -7,7 +7,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import { RoomPresenceBanner } from '../../components/ui/RoomPresenceBanner'
 import { RoomVoiceDock } from '../../components/voice/RoomVoiceDock'
@@ -16,6 +16,7 @@ import { playCorrectGuessSfx } from '../../lib/playCorrectGuessSfx'
 import { removeRecentRoom } from '../../lib/recentRooms'
 import { getSocket } from '../../lib/socket'
 import { joinRoom } from '../../lib/roomJoin'
+import drawingGameBg from '../../assets/game-backgrounds/drawing_bg.png'
 import { normalizeGuess, pickRandomWord } from './words'
 
 type Role = 'drawer' | 'guesser'
@@ -43,8 +44,32 @@ type ChatMessage = {
   variant: 'chat' | 'system' | 'correct'
 }
 
+const CHAT_AUTHOR_COLOR_CLASSES = [
+  'text-violet-700',
+  'text-teal-700',
+  'text-rose-700',
+  'text-amber-700',
+  'text-sky-700',
+  'text-fuchsia-700',
+  'text-emerald-700',
+  'text-orange-700',
+  'text-indigo-700',
+  'text-cyan-700',
+] as const
+
+function hashString(s: string): number {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+function chatAuthorNameClass(author: string, variant: ChatMessage['variant']): string {
+  if (variant === 'system' || author === 'Game') return 'text-zinc-500'
+  return CHAT_AUTHOR_COLOR_CLASSES[hashString(author) % CHAT_AUTHOR_COLOR_CLASSES.length]
+}
+
 const BRUSH_COLORS = [
-  { label: 'Snow', hex: '#E8EAFF' },
+  { label: 'Black', hex: '#000000' },
   { label: 'Violet', hex: '#7B61FF' },
   { label: 'Teal', hex: '#00D4AA' },
   { label: 'Fuchsia', hex: '#E040FB' },
@@ -55,6 +80,15 @@ const BRUSH_COLORS = [
 ] as const
 
 const DEFAULT_BRUSH = BRUSH_COLORS[0].hex
+
+function hexForColorInput(hex: string): string {
+  if (/^#[0-9A-Fa-f]{6}$/.test(hex)) return hex
+  if (/^#[0-9A-Fa-f]{3}$/.test(hex)) {
+    const h = hex.slice(1)
+    return `#${h[0]}${h[0]}${h[1]}${h[1]}${h[2]}${h[2]}`
+  }
+  return DEFAULT_BRUSH
+}
 
 /** Pencil density (canvas line width in CSS pixels). */
 const BRUSH_WEIGHTS = [
@@ -84,6 +118,30 @@ function formatDrawerCountdown(totalSeconds: number) {
 function clamp01(n: number) {
   if (!Number.isFinite(n)) return 0
   return Math.min(1, Math.max(0, n))
+}
+
+/** Let browser handle Ctrl+Z only for real text fields — not color/range/checkbox inputs. */
+function strokeUndoShouldYieldToField(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null
+  if (!el) return false
+  if (el.closest('[contenteditable="true"]')) return true
+  if (el.closest('textarea')) return true
+  const input = el.closest('input')
+  if (!input) return false
+  const type = (input as HTMLInputElement).type
+  if (
+    type === 'color' ||
+    type === 'range' ||
+    type === 'checkbox' ||
+    type === 'radio' ||
+    type === 'button' ||
+    type === 'submit' ||
+    type === 'reset' ||
+    type === 'file' ||
+    type === 'hidden'
+  )
+    return false
+  return true
 }
 
 /** `cssW` / `cssH` = canvas size in CSS pixels (same space as stored normalized points). */
@@ -270,6 +328,9 @@ export default function GuessDrawingGame() {
       setStrokes((prev) => [...prev, stroke])
     }
     const onClear = () => setStrokes([])
+    const onUndo = () => {
+      setStrokes((prev) => (prev.length ? prev.slice(0, -1) : prev))
+    }
     const onChat = (m: any) => {
       const variant =
         m.variant === 'system' || m.author === 'Game'
@@ -296,6 +357,7 @@ export default function GuessDrawingGame() {
 
     socket.on('room:state', onState)
     socket.on('drawing:stroke', onStroke)
+    socket.on('drawing:undo', onUndo)
     socket.on('drawing:clear', onClear)
     socket.on('chat:message', onChat)
     socket.on('chat:clear', onChatClear)
@@ -305,6 +367,7 @@ export default function GuessDrawingGame() {
     return () => {
       socket.off('room:state', onState)
       socket.off('drawing:stroke', onStroke)
+      socket.off('drawing:undo', onUndo)
       socket.off('drawing:clear', onClear)
       socket.off('chat:message', onChat)
       socket.off('chat:clear', onChatClear)
@@ -335,7 +398,7 @@ export default function GuessDrawingGame() {
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-    ctx.fillStyle = '#13162B'
+    ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, w, h)
 
     for (const s of strokesRef.current) {
@@ -557,6 +620,7 @@ export default function GuessDrawingGame() {
     )
       return
     e.currentTarget.setPointerCapture(e.pointerId)
+    e.currentTarget.focus()
     drawingRef.current = true
     setDraftPoints([clientToNorm(e)])
   }
@@ -611,8 +675,12 @@ export default function GuessDrawingGame() {
       setDraftPoints([])
       return
     }
+    if (isOnline && roomCode) {
+      getSocket().emit('drawing:undo')
+      return
+    }
     setStrokes((prev) => (prev.length ? prev.slice(0, -1) : prev))
-  }, [gamePhase, role, roundSolved, drawerTurnPhase])
+  }, [gamePhase, role, roundSolved, drawerTurnPhase, isOnline, roomCode])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -623,9 +691,7 @@ export default function GuessDrawingGame() {
         drawerTurnPhase !== 'drawing'
       )
         return
-      const target = e.target as HTMLElement | null
-      if (target?.closest('input, textarea, [contenteditable="true"]'))
-        return
+      if (strokeUndoShouldYieldToField(e.target)) return
       const mod = e.ctrlKey || e.metaKey
       if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault()
@@ -681,7 +747,20 @@ export default function GuessDrawingGame() {
   const backTarget = '/games/drawing'
 
   return (
-    <div className="relative flex flex-1 flex-col px-4 py-4 sm:px-6 sm:py-5 lg:min-h-0 lg:overflow-hidden">
+    <div className="relative isolate flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `url(${drawingGameBg})`,
+            backgroundRepeat: 'repeat',
+            backgroundSize: 'clamp(15rem, 38vw, 24rem)',
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-white/15" />
+      </div>
+
+      <div className="relative flex flex-1 flex-col px-4 py-4 text-zinc-900 sm:px-6 sm:py-5 lg:min-h-0 lg:overflow-hidden">
       <RoomPresenceBanner
         message={presencePayload?.text ?? null}
         kind={presencePayload?.kind ?? null}
@@ -698,18 +777,12 @@ export default function GuessDrawingGame() {
             }
             void navigate(backTarget)
           }}
-          className="flex items-center gap-2 text-sm text-muted transition-colors hover:text-text"
+          className="flex items-center gap-2 rounded-lg border border-zinc-200/90 bg-white/95 px-2 py-1.5 text-sm text-zinc-600 shadow-sm backdrop-blur-sm transition-all duration-150 hover:border-accent/40 hover:bg-white hover:text-zinc-900 hover:shadow-lg hover:ring-2 hover:ring-accent/20 active:scale-[0.98]"
         >
           <ArrowLeft size={15} /> Back
         </button>
-        <Link
-          to="/games/drawing"
-          className="text-sm font-medium text-accent hover:text-accent/80"
-        >
-          Game details
-        </Link>
         {isOnline && playerCount !== null && (
-          <span className="rounded-lg border border-border bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted">
+          <span className="rounded-lg border border-zinc-200/90 bg-white/95 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 shadow-sm backdrop-blur-sm">
             {playerCount} players
           </span>
         )}
@@ -718,6 +791,7 @@ export default function GuessDrawingGame() {
             type="button"
             variant="ghost"
             size="sm"
+            className="!border-zinc-200/90 !bg-white/95 !text-zinc-700 shadow-sm transition-all duration-150 hover:!border-accent/40 hover:!bg-white hover:!text-zinc-900 hover:!shadow-lg hover:ring-2 hover:ring-accent/20 active:scale-[0.98]"
             onClick={() => {
               const socket = getSocket()
               socket.emit('room:leave')
@@ -738,7 +812,7 @@ export default function GuessDrawingGame() {
             players={voicePlayers}
           />
         ) : (
-          <div className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-muted">
+          <div className="rounded-xl border border-zinc-200/90 bg-white/95 px-3 py-2.5 text-sm text-zinc-600 shadow-sm backdrop-blur-sm">
             Room voice is available when you play online in a shared room.
           </div>
         )}
@@ -748,10 +822,10 @@ export default function GuessDrawingGame() {
         <section className="flex min-h-0 min-w-0 flex-col overflow-hidden lg:col-span-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-lg font-extrabold text-text sm:text-xl">
+              <h1 className="text-lg font-extrabold tracking-tight text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.55)] sm:text-xl">
                 Guess the Drawing
               </h1>
-              <span className="rounded-lg border border-border bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted">
+              <span className="rounded-lg border border-zinc-200/90 bg-white/95 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 shadow-sm backdrop-blur-sm">
                 Round {activeRound}/{MAX_ROUNDS}
               </span>
               {!roundSolved &&
@@ -759,10 +833,10 @@ export default function GuessDrawingGame() {
                 gamePhase === 'playing' &&
                 (!isOnline || onlineStatus === 'playing') && (
                 <span
-                  className={`rounded-lg border px-2.5 py-1 font-mono text-xs font-bold tabular-nums ${
+                  className={`rounded-lg border px-2.5 py-1 font-mono text-xs font-bold tabular-nums shadow-sm backdrop-blur-sm ${
                     drawerSecondsLeft <= 10
-                      ? 'border-amber-500/40 bg-amber-500/10 text-amber-400'
-                      : 'border-border bg-surface text-muted'
+                      ? 'border-amber-300 bg-amber-50 text-amber-800'
+                      : 'border-zinc-200/90 bg-white/95 text-zinc-600'
                   }`}
                   title="Time left in this round"
                 >
@@ -778,7 +852,7 @@ export default function GuessDrawingGame() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="gap-1.5"
+                  className="gap-1.5 !border-zinc-200/90 !bg-white/95 !text-zinc-700 shadow-sm transition-all duration-150 hover:!border-zinc-300 hover:!bg-white hover:!text-zinc-900 hover:shadow-md active:scale-[0.98]"
                   title="Undo last stroke (Ctrl+Z or ⌘Z)"
                   aria-keyshortcuts="Control+Z Meta+Z"
                   disabled={strokes.length === 0 && draftPoints.length === 0}
@@ -790,7 +864,7 @@ export default function GuessDrawingGame() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="gap-1.5"
+                  className="gap-1.5 !border-zinc-200/90 !bg-white/95 !text-zinc-700 shadow-sm transition-all duration-150 hover:!border-zinc-300 hover:!bg-white hover:!text-zinc-900 hover:shadow-md active:scale-[0.98]"
                   onClick={clearCanvas}
                 >
                   <Eraser size={14} /> Clear
@@ -802,12 +876,12 @@ export default function GuessDrawingGame() {
           {role === 'drawer' &&
             !roundSolved &&
             drawerTurnPhase === 'drawing' && (
-            <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="mb-2 flex flex-col gap-2 rounded-xl border border-zinc-200/90 bg-white/95 p-2 shadow-sm sm:flex-row sm:flex-wrap sm:items-center">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
                   Color
                 </span>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {BRUSH_COLORS.map((c) => (
                     <button
                       key={c.hex}
@@ -816,18 +890,39 @@ export default function GuessDrawingGame() {
                       aria-label={`${c.label} brush color`}
                       aria-pressed={brushColor === c.hex}
                       onClick={() => setBrushColor(c.hex)}
-                      className={`h-7 w-7 rounded-full border-2 transition-transform hover:scale-105 ${
+                      className={`h-7 w-7 rounded-full border-2 transition-all duration-150 hover:scale-105 ${
                         brushColor === c.hex
-                          ? 'scale-110 border-white shadow-glow-accent ring-2 ring-accent'
-                          : 'border-white/20'
+                          ? 'scale-110 border-zinc-400 shadow-glow-accent ring-2 ring-accent'
+                          : 'border-zinc-200 hover:border-zinc-400 hover:ring-2 hover:ring-white/60'
                       }`}
                       style={{ backgroundColor: c.hex }}
                     />
                   ))}
+                  <label
+                    className={`relative flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 transition-all duration-150 hover:scale-105 hover:border-zinc-400 hover:ring-2 hover:ring-white/60 ${
+                      BRUSH_COLORS.some((c) => c.hex === brushColor)
+                        ? 'border-zinc-200'
+                        : 'scale-110 border-zinc-400 shadow-glow-accent ring-2 ring-accent'
+                    }`}
+                    title="Custom color"
+                  >
+                    <span className="sr-only">Custom color</span>
+                    <input
+                      type="color"
+                      value={hexForColorInput(brushColor)}
+                      onChange={(e) => setBrushColor(e.target.value)}
+                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                      aria-label="Custom brush color"
+                    />
+                    <span
+                      className="pointer-events-none absolute inset-0 rounded-full"
+                      style={{ backgroundColor: brushColor }}
+                    />
+                  </label>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2 border-t border-border pt-2 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
-                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted">
+              <div className="flex flex-wrap items-center gap-2 border-t border-zinc-200 pt-2 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
                   Line
                 </span>
                 <div className="flex gap-1">
@@ -838,10 +933,10 @@ export default function GuessDrawingGame() {
                       aria-label={`${w.label} line`}
                       aria-pressed={brushWidth === w.width}
                       onClick={() => setBrushWidth(w.width)}
-                      className={`flex h-8 min-w-13 flex-col items-center justify-center gap-0.5 rounded-lg border px-1.5 py-0.5 text-[9px] font-bold transition-colors ${
+                      className={`flex h-8 min-w-13 flex-col items-center justify-center gap-0.5 rounded-lg border px-1.5 py-0.5 text-[9px] font-bold transition-all duration-150 active:scale-95 ${
                         brushWidth === w.width
-                          ? 'border-accent bg-accent/15 text-accent'
-                          : 'border-border bg-surface text-muted hover:border-border hover:text-text'
+                          ? 'border-accent/50 bg-accent/10 text-accent shadow-[0_0_12px_rgba(123,97,255,0.2)] hover:border-accent/60 hover:bg-accent/15'
+                          : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-zinc-300 hover:bg-white hover:text-zinc-900 hover:shadow-sm'
                       }`}
                     >
                       <span
@@ -858,7 +953,7 @@ export default function GuessDrawingGame() {
 
           <div
             ref={wrapRef}
-            className={`relative min-h-70 flex-1 overflow-hidden rounded-2xl border border-border bg-surface sm:min-h-90 ${
+            className={`relative min-h-70 flex-1 overflow-hidden rounded-2xl border border-zinc-200/90 bg-white shadow-[inset_0_1px_0_0_rgba(255,255,255,1),0_1px_3px_rgba(0,0,0,0.06)] sm:min-h-90 ${
               role === 'drawer' &&
               !roundSolved &&
               drawerTurnPhase === 'drawing'
@@ -868,7 +963,8 @@ export default function GuessDrawingGame() {
           >
             <canvas
               ref={canvasRef}
-              className="absolute inset-0 touch-none"
+              tabIndex={-1}
+              className="absolute inset-0 touch-none outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
@@ -885,14 +981,14 @@ export default function GuessDrawingGame() {
             {role === 'drawer' &&
               !roundSolved &&
               drawerTurnPhase === 'drawing' && (
-              <div className="pointer-events-none absolute right-2 top-2 z-10 max-w-[42%] rounded-md border border-accent/25 bg-base/80 px-2 py-1 shadow-card backdrop-blur-sm">
+              <div className="pointer-events-none absolute right-2 top-2 z-10 max-w-[42%] rounded-md border border-accent/30 bg-white/95 px-2 py-1 shadow-md backdrop-blur-sm">
                 <p className="text-[8px] font-semibold uppercase tracking-widest text-accent">
                   Word
                 </p>
-                <p className="truncate font-mono text-xs font-bold leading-tight tracking-wide text-text sm:text-sm">
+                <p className="truncate font-mono text-xs font-bold leading-tight tracking-wide text-zinc-900 sm:text-sm">
                   {isOnline ? drawerWord ?? '...' : secretWord}
                 </p>
-                <p className="mt-0.5 text-[8px] leading-tight text-muted">
+                <p className="mt-0.5 text-[8px] leading-tight text-zinc-500">
                   Don&apos;t type in chat
                 </p>
               </div>
@@ -900,8 +996,8 @@ export default function GuessDrawingGame() {
             {!roundSolved &&
               drawerTurnPhase === 'reveal' &&
               (!isOnline || onlineStatus === 'reveal') && (
-              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-base/85 px-6 text-center backdrop-blur-sm">
-                <p className="text-xs font-semibold uppercase tracking-widest text-muted">
+              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-white/95 px-6 text-center shadow-inner backdrop-blur-sm">
+                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
                   {isOnline && solvedByName
                     ? `${solvedByName} guessed it!`
                     : "Time's up. The word was"}
@@ -909,9 +1005,9 @@ export default function GuessDrawingGame() {
                 <p className="font-mono text-2xl font-extrabold tracking-wide text-accent sm:text-3xl">
                   {isOnline ? revealedWord ?? drawerWord ?? '...' : secretWord}
                 </p>
-                <p className="text-sm text-muted">
+                <p className="text-sm text-zinc-600">
                   Switching turns in{' '}
-                  <span className="font-mono font-bold tabular-nums text-text">
+                  <span className="font-mono font-bold tabular-nums text-zinc-900">
                     {revealSecondsLeft}
                   </span>{' '}
                   sec
@@ -919,17 +1015,17 @@ export default function GuessDrawingGame() {
               </div>
             )}
             {roundSolved && gamePhase === 'playing' && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center bg-base/70 text-center backdrop-blur-sm">
-                <p className="px-4 text-lg font-bold text-teal">Round solved!</p>
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/90 text-center backdrop-blur-sm">
+                <p className="px-4 text-lg font-bold text-teal-600">Round solved!</p>
               </div>
             )}
           </div>
         </section>
 
-        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card lg:col-span-2">
-          <div className="border-b border-border px-4 py-3">
-            <h2 className="text-sm font-semibold text-text">Guesses</h2>
-            <p className="text-xs text-muted">Chat is for guesses only (UI demo).</p>
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-zinc-200/90 bg-white/95 shadow-sm backdrop-blur-sm lg:col-span-2">
+          <div className="border-b border-zinc-200 px-4 py-3">
+            <h2 className="text-sm font-semibold text-zinc-900">Guesses</h2>
+            <p className="text-xs text-zinc-500">Chat is for guesses only (UI demo).</p>
           </div>
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
@@ -938,13 +1034,15 @@ export default function GuessDrawingGame() {
                   key={m.id}
                   className={`rounded-lg px-3 py-2 text-sm ${
                     m.variant === 'system'
-                      ? 'border border-border/60 bg-surface/80 text-muted'
+                      ? 'border border-zinc-200 bg-zinc-50 text-zinc-600'
                       : m.variant === 'correct'
-                        ? 'border border-teal/40 bg-teal/15 font-semibold text-teal'
-                        : 'bg-surface text-text'
+                        ? 'border border-teal-200 bg-teal-50 font-semibold text-teal-700 shadow-sm'
+                        : 'border border-zinc-100 bg-white text-zinc-800 shadow-sm'
                   }`}
                 >
-                  <span className="text-xs font-semibold text-muted">
+                  <span
+                    className={`text-xs font-semibold ${chatAuthorNameClass(m.author, m.variant)}`}
+                  >
                     {m.author}
                   </span>
                   <p className="mt-0.5 wrap-break-word">{m.text}</p>
@@ -953,7 +1051,7 @@ export default function GuessDrawingGame() {
             </div>
             <form
               onSubmit={sendGuess}
-              className="border-t border-border p-3"
+              className="border-t border-zinc-200 bg-zinc-50/90 p-3"
             >
               {role === 'guesser' && !roundSolved && gamePhase === 'playing' ? (
                 <div className="flex gap-2">
@@ -961,20 +1059,20 @@ export default function GuessDrawingGame() {
                     value={guessInput}
                     onChange={(e) => setGuessInput(e.target.value)}
                     placeholder="Type your guess…"
-                    className="min-w-0 flex-1 rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none placeholder:text-muted focus:border-accent/60"
+                    className="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 hover:border-zinc-300 focus:border-accent/50 focus:ring-1 focus:ring-accent/25"
                     autoComplete="off"
                   />
                   <Button
                     type="submit"
                     variant="primary"
                     size="md"
-                    className="shrink-0 gap-1.5 px-4"
+                    className="shrink-0 gap-1.5 px-4 shadow-glow-accent transition-all duration-150 hover:brightness-110 hover:shadow-md active:scale-95"
                   >
                     <Send size={16} />
                   </Button>
                 </div>
               ) : (
-                <p className="text-center text-xs text-muted">
+                <p className="text-center text-xs text-zinc-500">
                   {gamePhase === 'leaderboard'
                     ? 'Check the leaderboard, then tap continue for the next round.'
                     : role === 'drawer' && drawerTurnPhase === 'reveal'
@@ -990,26 +1088,26 @@ export default function GuessDrawingGame() {
       </div>
 
       {gamePhase === 'leaderboard' && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-base/85 p-4 backdrop-blur-md">
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-zinc-900/25 p-4 backdrop-blur-sm">
           <div
-            className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-card"
+            className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl"
             role="dialog"
             aria-modal="true"
             aria-labelledby="lb-title"
           >
             <h2
               id="lb-title"
-              className="text-center text-lg font-extrabold text-text sm:text-xl"
+              className="text-center text-lg font-extrabold text-zinc-900 sm:text-xl"
             >
               {activeRound >= MAX_ROUNDS ? 'Match complete' : `Round ${activeRound} complete`}
             </h2>
-            <p className="mt-1 text-center text-xs text-muted">
+            <p className="mt-1 text-center text-xs text-zinc-500">
               Last word:{' '}
               <span className="font-mono font-semibold text-accent">{secretWord}</span>
             </p>
 
-            <div className="mt-6 space-y-2 rounded-xl border border-border bg-surface/80 p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+            <div className="mt-6 space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
                 Leaderboard
               </p>
               {Object.entries(scores)
@@ -1018,12 +1116,12 @@ export default function GuessDrawingGame() {
                 .map(([id, pts]) => (
                   <div
                     key={id}
-                    className="flex items-center justify-between gap-3 border-b border-border/60 py-2 text-sm last:border-b-0"
+                    className="flex items-center justify-between gap-3 border-b border-zinc-200 py-2 text-sm last:border-b-0"
                   >
-                    <span className="font-medium text-text">
+                    <span className="font-medium text-zinc-800">
                       {id === playerId ? 'You' : id.slice(0, 6)}
                     </span>
-                    <span className="font-mono font-bold text-teal">{pts} pts</span>
+                    <span className="font-mono font-bold text-teal-600">{pts} pts</span>
                   </div>
                 ))}
             </div>
@@ -1033,7 +1131,7 @@ export default function GuessDrawingGame() {
                 type="button"
                 variant="primary"
                 size="md"
-                className="min-w-40"
+                className="min-w-40 shadow-glow-accent transition-all duration-150 hover:brightness-110 hover:shadow-md active:scale-[0.98]"
                 onClick={dismissLeaderboardAndContinue}
                 disabled={isOnline}
               >
@@ -1047,6 +1145,7 @@ export default function GuessDrawingGame() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

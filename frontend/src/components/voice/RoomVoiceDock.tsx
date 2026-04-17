@@ -1,7 +1,6 @@
-import { Mic, MicOff, Radio } from 'lucide-react'
+import { Mic, MicOff } from 'lucide-react'
 import { useVoiceMode } from '../../context/useVoiceMode'
 import { useRoomVoice, type VoicePeer } from '../../hooks/useRoomVoice'
-import Button from '../ui/Button'
 
 type RoomVoiceDockProps = {
   roomCode: string | null
@@ -21,7 +20,7 @@ export function RoomVoiceDock({
 }: RoomVoiceDockProps) {
   const { voiceMode, setVoiceMode } = useVoiceMode()
 
-  const { status, error, muted, setMuted, remoteAudioCount, peerCount } = useRoomVoice({
+  const { status, muted, setMuted } = useRoomVoice({
     roomCode,
     myPlayerId,
     peers: players,
@@ -30,91 +29,66 @@ export function RoomVoiceDock({
   })
 
   const canVoice = Boolean(roomCode && myPlayerId && players.length >= 2)
-  const subline = !canVoice
-    ? 'Voice needs at least two people in this room.'
-    : silenceAll && voiceMode && (status === 'live' || status === 'requesting')
-      ? 'Night: everyone muted until morning.'
-      : voiceMode && status === 'live'
-        ? `${remoteAudioCount}/${peerCount} connected · mesh · Opus`
-        : voiceMode && status === 'requesting'
-          ? 'Connecting…'
-          : voiceMode && status === 'error'
-            ? error ?? 'Could not open microphone'
-            : 'Browser WebRTC: low bitrate, echo cancellation on'
+  const live = status === 'live'
+  const connecting = status === 'requesting'
+
+  const handleClick = () => {
+    if (!canVoice) return
+    if (!voiceMode) {
+      setVoiceMode(true)
+      return
+    }
+    if (live && !silenceAll) {
+      setMuted((m) => !m)
+      return
+    }
+    if (status === 'error' || status === 'idle') {
+      setVoiceMode(false)
+    }
+  }
+
+  const isDisabled = !canVoice || connecting || (voiceMode && live && silenceAll)
+
+  const showUnmutedMic =
+    !voiceMode || connecting || (live && !silenceAll && !muted)
+
+  const label = !canVoice
+    ? 'Room voice needs at least two people'
+    : !voiceMode
+      ? 'Enable room voice'
+      : connecting
+        ? 'Connecting…'
+        : live && silenceAll
+          ? 'Voice muted for this phase'
+          : live
+            ? muted
+              ? 'Unmute microphone'
+              : 'Mute microphone'
+            : status === 'error'
+              ? 'Voice error — click to turn off'
+              : 'Room voice'
 
   return (
-    <div
-      className={`flex flex-col gap-2 rounded-xl border border-border bg-surface px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 ${className}`}
-    >
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">
-        <div
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-            voiceMode && status === 'live'
-              ? 'bg-teal/20 text-teal'
-              : voiceMode
-                ? 'bg-amber-500/15 text-amber-200'
-                : 'bg-card text-muted'
-          }`}
-        >
-          {voiceMode ? <Mic size={18} aria-hidden /> : <MicOff size={18} aria-hidden />}
-        </div>
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-semibold text-text">Room voice</p>
-            {voiceMode && canVoice && status === 'live' && (
-              <span className="inline-flex items-center gap-1 rounded-md border border-teal/30 bg-teal/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal">
-                <Radio size={10} aria-hidden /> Live
-              </span>
-            )}
-          </div>
-          <p className="truncate text-xs text-muted">{subline}</p>
-        </div>
-      </div>
-
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-        {voiceMode && canVoice && (status === 'live' || status === 'requesting') && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setMuted((m) => !m)}
-            title={muted ? 'Unmute to talk' : 'Mute microphone'}
-          >
-            {muted ? <MicOff size={16} className="mr-1.5" /> : <Mic size={16} className="mr-1.5" />}
-            {muted ? 'Unmute' : 'Mute'}
-          </Button>
+    <div className={`inline-flex items-center justify-center ${className}`}>
+      <button
+        type="button"
+        disabled={isDisabled}
+        onClick={handleClick}
+        title={label}
+        aria-label={label}
+        aria-pressed={Boolean(voiceMode && live && !silenceAll && !muted)}
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border shadow-sm transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-40 active:scale-95 ${
+          voiceMode && live && !silenceAll && !muted
+            ? 'border-teal/45 bg-teal/15 text-teal hover:border-teal/55 hover:bg-teal/25 hover:shadow-md'
+            : 'border-zinc-200/90 bg-white/95 text-zinc-600 hover:border-zinc-300 hover:bg-white hover:text-zinc-900 hover:shadow-md'
+        } ${connecting ? 'animate-pulse' : ''}`}
+      >
+        {showUnmutedMic ? (
+          <Mic size={20} strokeWidth={2} aria-hidden />
+        ) : (
+          <MicOff size={20} strokeWidth={2} aria-hidden />
         )}
-        {!voiceMode && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={!canVoice}
-            onClick={() => {
-              if (!canVoice) return
-              setVoiceMode(true)
-            }}
-            title="Enable room voice"
-          >
-            <Mic size={16} className="mr-1.5" />
-            Enable voice
-          </Button>
-        )}
-        {voiceMode && canVoice && (status === 'idle' || status === 'error') && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              // Quick opt-out; primary opt-out is in Settings.
-              setVoiceMode(false)
-            }}
-            title="Turn voice off"
-          >
-            Turn off
-          </Button>
-        )}
-      </div>
+      </button>
     </div>
   )
 }
