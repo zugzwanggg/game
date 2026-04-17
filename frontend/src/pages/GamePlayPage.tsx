@@ -10,7 +10,7 @@ export default function GamePlayPage() {
 
   if (gameId === 'drawing') {
     return (
-      <div className="flex min-h-0 flex-col bg-zinc-100 h-dvh max-h-dvh overflow-y-auto overflow-x-hidden">
+      <div className="flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden overflow-x-hidden bg-zinc-100">
         <GuessDrawingGame />
       </div>
     )
@@ -18,7 +18,7 @@ export default function GamePlayPage() {
 
   if (gameId === 'meme') {
     return (
-      <div className="flex min-h-0 flex-col bg-base h-dvh max-h-dvh overflow-y-auto overflow-x-hidden">
+      <div className="flex h-dvh max-h-dvh min-h-0 flex-col overflow-x-hidden overflow-y-auto bg-base">
         <MemeBattleGame />
       </div>
     )
@@ -26,7 +26,7 @@ export default function GamePlayPage() {
 
   if (gameId === 'spy') {
     return (
-      <div className="flex min-h-0 flex-col bg-base h-dvh max-h-dvh overflow-y-auto overflow-x-hidden">
+      <div className="flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden overflow-x-hidden bg-base">
         <SpyGame />
       </div>
     )

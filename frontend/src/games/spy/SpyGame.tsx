@@ -1,6 +1,8 @@
-import { ArrowLeft, Crown, Timer } from 'lucide-react'
+import { ArrowLeft, Crown, Send, Timer } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { MobileChatDock, MOBILE_CHAT_DOCK_PAD_CLASS } from '../../components/chat/MobileChatDock'
+import { chatListScrollKey, useChatScrollToBottom } from '../../hooks/useChatScrollToBottom'
 import Avatar from '../../components/ui/Avatar'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -82,7 +84,8 @@ export default function SpyGame() {
   const [spyGuessText, setSpyGuessText] = useState('')
   const [chatInput, setChatInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [mobileTab, setMobileTab] = useState<'round' | 'chat' | 'players'>('round')
+  const [mobileTab, setMobileTab] = useState<'round' | 'players'>('round')
+  const [mobileChatOpen, setMobileChatOpen] = useState(false)
   const [voteNudgeUntil, setVoteNudgeUntil] = useState<number>(0)
 
   const isHost = Boolean(playerId && createdByUserId && playerId === createdByUserId)
@@ -241,6 +244,31 @@ export default function SpyGame() {
     return m
   }, [players])
 
+  const spyChatMessageList = useMemo(
+    () =>
+      messages.length ? (
+        messages.map((m) => (
+          <div
+            key={m.id}
+            className={`rounded-lg px-3 py-2 text-sm ${
+              m.variant === 'system'
+                ? 'border border-border/60 bg-surface/80 text-muted'
+                : 'bg-surface text-text'
+            }`}
+          >
+            <span className="text-xs font-semibold text-muted">{m.author}</span>
+            <p className="mt-0.5 wrap-break-word">{m.text}</p>
+          </div>
+        ))
+      ) : (
+        <div className="py-6 text-center text-sm text-muted">No messages yet.</div>
+      ),
+    [messages],
+  )
+
+  const spyChatScrollKey = useMemo(() => chatListScrollKey(messages), [messages])
+  const spyDesktopChatRef = useChatScrollToBottom(spyChatScrollKey)
+
   if (!isOnline || !roomCode) {
     return (
       <div className="flex flex-1 items-center justify-center text-muted">
@@ -250,7 +278,9 @@ export default function SpyGame() {
   }
 
   return (
-    <div className="relative flex flex-1 flex-col px-4 py-4 sm:px-6 sm:py-5 lg:min-h-0 lg:overflow-hidden">
+    <div
+      className={`relative flex h-full min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6 sm:py-5 lg:min-h-0 ${MOBILE_CHAT_DOCK_PAD_CLASS}`}
+    >
       <RoomPresenceBanner
         message={presencePayload?.text ?? null}
         kind={presencePayload?.kind ?? null}
@@ -328,7 +358,6 @@ export default function SpyGame() {
       <div className="mb-3 flex gap-2 lg:hidden">
         {[
           { id: 'round' as const, label: 'Round' },
-          { id: 'chat' as const, label: 'Chat' },
           { id: 'players' as const, label: 'Players' },
         ].map((t) => (
           <button
@@ -345,7 +374,7 @@ export default function SpyGame() {
         ))}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row lg:min-h-0">
         <div
           className={[
             'min-h-0 flex-1 flex-col rounded-2xl border border-border bg-surface p-4',
@@ -562,24 +591,21 @@ export default function SpyGame() {
 
         <div
           className={[
-            'w-full flex-col gap-4 lg:w-90 lg:flex-none',
+            'flex w-full flex-col gap-4 overflow-hidden lg:w-90 lg:flex-none',
             mobileTab === 'round' ? 'hidden' : 'flex',
             'lg:flex',
           ].join(' ')}
         >
-          <div
-            className={[
-              'min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card',
-              mobileTab === 'chat' ? 'flex' : 'hidden',
-              'lg:flex',
-            ].join(' ')}
-          >
-            <div className="border-b border-border px-4 py-3">
+          <div className="hidden min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card lg:flex lg:max-h-full">
+            <div className="shrink-0 border-b border-border px-4 py-3">
               <h2 className="text-sm font-semibold text-text">Chat</h2>
               <p className="text-xs text-muted">Talk freely. Don’t say the word directly.</p>
             </div>
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
+              <div
+                ref={spyDesktopChatRef}
+                className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-3 [scrollbar-gutter:stable]"
+              >
                 {messages.length ? (
                   messages.map((m) => (
                     <div
@@ -598,7 +624,7 @@ export default function SpyGame() {
                   <div className="py-6 text-center text-sm text-muted">No messages yet.</div>
                 )}
               </div>
-              <form onSubmit={sendChat} className="border-t border-border p-3">
+              <form onSubmit={sendChat} className="shrink-0 border-t border-border p-3">
                 <div className="flex gap-2">
                   <input
                     value={chatInput}
@@ -662,6 +688,29 @@ export default function SpyGame() {
           </div>
         </div>
       </div>
+
+      <MobileChatDock
+        title="Chat"
+        subtitle="Tap ↑ for history"
+        expanded={mobileChatOpen}
+        onExpandedChange={setMobileChatOpen}
+        scrollToBottomKey={spyChatScrollKey}
+        messages={<div className="space-y-2">{spyChatMessageList}</div>}
+        composer={
+          <form className="flex w-full gap-2" onSubmit={sendChat}>
+            <input
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Type a message…"
+              className="min-w-0 flex-1 rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none placeholder:text-muted focus:border-accent/60"
+              autoComplete="off"
+            />
+            <Button type="submit" variant="primary" size="md" className="shrink-0 px-3">
+              <Send size={16} />
+            </Button>
+          </form>
+        }
+      />
     </div>
   )
 }

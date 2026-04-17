@@ -3,14 +3,17 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { MobileChatDock, MOBILE_CHAT_DOCK_PAD_CLASS } from '../../components/chat/MobileChatDock'
 import Button from '../../components/ui/Button'
 import { RoomPresenceBanner } from '../../components/ui/RoomPresenceBanner'
 import { RoomVoiceDock } from '../../components/voice/RoomVoiceDock'
+import { chatListScrollKey, useChatScrollToBottom } from '../../hooks/useChatScrollToBottom'
 import { useRoomPresenceNotification } from '../../hooks/useRoomPresenceNotification'
 import { playCorrectGuessSfx } from '../../lib/playCorrectGuessSfx'
 import { removeRecentRoom } from '../../lib/recentRooms'
@@ -229,6 +232,7 @@ export default function GuessDrawingGame() {
     },
   ])
   const [guessInput, setGuessInput] = useState('')
+  const [mobileGuessesOpen, setMobileGuessesOpen] = useState(false)
   const [roundSolved, setRoundSolved] = useState(false)
   const [gamePhase, setGamePhase] = useState<GamePhase>('playing')
   const [activeRound, setActiveRound] = useState(1)
@@ -702,6 +706,35 @@ export default function GuessDrawingGame() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [gamePhase, role, roundSolved, drawerTurnPhase, undoDrawing])
 
+  const guessesMessageList = useMemo(
+    () =>
+      messages.map((m) => (
+        <div
+          key={m.id}
+          className={`rounded-lg px-3 py-2 text-sm ${
+            m.variant === 'system'
+              ? 'border border-zinc-200 bg-zinc-50 text-zinc-600'
+              : m.variant === 'correct'
+                ? 'border border-teal-200 bg-teal-50 font-semibold text-teal-700 shadow-sm'
+                : 'border border-zinc-100 bg-white text-zinc-800 shadow-sm'
+          }`}
+        >
+          <span className={`text-xs font-semibold ${chatAuthorNameClass(m.author, m.variant)}`}>
+            {m.author}
+          </span>
+          <p className="mt-0.5 wrap-break-word">{m.text}</p>
+        </div>
+      )),
+    [messages],
+  )
+
+  const guessesScrollKey = useMemo(() => chatListScrollKey(messages), [messages])
+  const guessesListRef = useChatScrollToBottom(guessesScrollKey)
+
+  useEffect(() => {
+    if (gamePhase === 'leaderboard') setMobileGuessesOpen(false)
+  }, [gamePhase])
+
   const sendGuess = (e: React.FormEvent) => {
     e.preventDefault()
     const text = guessInput.trim()
@@ -747,7 +780,7 @@ export default function GuessDrawingGame() {
   const backTarget = '/games/drawing'
 
   return (
-    <div className="relative isolate flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="relative isolate flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
         <div
           className="absolute inset-0"
@@ -760,7 +793,7 @@ export default function GuessDrawingGame() {
         <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-white/15" />
       </div>
 
-      <div className="relative flex flex-1 flex-col px-4 py-4 text-zinc-900 sm:px-6 sm:py-5 lg:min-h-0 lg:overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 text-zinc-900 sm:px-6 sm:py-5 lg:min-h-0">
       <RoomPresenceBanner
         message={presencePayload?.text ?? null}
         kind={presencePayload?.kind ?? null}
@@ -818,7 +851,9 @@ export default function GuessDrawingGame() {
         )}
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-5 lg:gap-6">
+      <div
+        className={`grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-5 lg:gap-6 ${MOBILE_CHAT_DOCK_PAD_CLASS}`}
+      >
         <section className="flex min-h-0 min-w-0 flex-col overflow-hidden lg:col-span-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-3">
@@ -1022,36 +1057,21 @@ export default function GuessDrawingGame() {
           </div>
         </section>
 
-        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-zinc-200/90 bg-white/95 shadow-sm backdrop-blur-sm lg:col-span-2">
-          <div className="border-b border-zinc-200 px-4 py-3">
+        <section className="hidden min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-zinc-200/90 bg-white/95 shadow-sm backdrop-blur-sm lg:col-span-2 lg:flex lg:h-full">
+          <div className="shrink-0 border-b border-zinc-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-zinc-900">Guesses</h2>
             <p className="text-xs text-zinc-500">Chat is for guesses only (UI demo).</p>
           </div>
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
-              {messages.map((m) => (
-                <div
-                  key={m.id}
-                  className={`rounded-lg px-3 py-2 text-sm ${
-                    m.variant === 'system'
-                      ? 'border border-zinc-200 bg-zinc-50 text-zinc-600'
-                      : m.variant === 'correct'
-                        ? 'border border-teal-200 bg-teal-50 font-semibold text-teal-700 shadow-sm'
-                        : 'border border-zinc-100 bg-white text-zinc-800 shadow-sm'
-                  }`}
-                >
-                  <span
-                    className={`text-xs font-semibold ${chatAuthorNameClass(m.author, m.variant)}`}
-                  >
-                    {m.author}
-                  </span>
-                  <p className="mt-0.5 wrap-break-word">{m.text}</p>
-                </div>
-              ))}
+            <div
+              ref={guessesListRef}
+              className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-3 [scrollbar-gutter:stable]"
+            >
+              {guessesMessageList}
             </div>
             <form
               onSubmit={sendGuess}
-              className="border-t border-zinc-200 bg-zinc-50/90 p-3"
+              className="shrink-0 border-t border-zinc-200 bg-zinc-50/90 p-3"
             >
               {role === 'guesser' && !roundSolved && gamePhase === 'playing' ? (
                 <div className="flex gap-2">
@@ -1086,6 +1106,46 @@ export default function GuessDrawingGame() {
           </div>
         </section>
       </div>
+
+      <MobileChatDock
+        title="Guesses"
+        subtitle="Tap ↑ to read history · guesses only"
+        expanded={mobileGuessesOpen}
+        onExpandedChange={setMobileGuessesOpen}
+        scrollToBottomKey={guessesScrollKey}
+        messages={<div className="space-y-2">{guessesMessageList}</div>}
+        composer={
+          role === 'guesser' && !roundSolved && gamePhase === 'playing' ? (
+            <form className="flex w-full gap-2" onSubmit={sendGuess}>
+              <input
+                value={guessInput}
+                onChange={(e) => setGuessInput(e.target.value)}
+                placeholder="Type your guess…"
+                className="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-accent/50 focus:ring-1 focus:ring-accent/25"
+                autoComplete="off"
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                className="shrink-0 gap-1.5 px-3 shadow-glow-accent transition-all duration-150 hover:brightness-110 active:scale-95"
+              >
+                <Send size={16} />
+              </Button>
+            </form>
+          ) : (
+            <div className="rounded-xl border border-zinc-200/90 bg-zinc-50 px-2 py-2 text-center text-[10px] leading-snug text-zinc-500">
+              {gamePhase === 'leaderboard'
+                ? 'Leaderboard open — use desktop panel or expand to read.'
+                : role === 'drawer' && drawerTurnPhase === 'reveal'
+                  ? 'Drawer: word on canvas. Guessing switches soon.'
+                  : role === 'drawer'
+                    ? 'Switch to Guessing to type, or use another device as guesser.'
+                    : 'Round over — expand to read chat.'}
+            </div>
+          )
+        }
+      />
 
       {gamePhase === 'leaderboard' && (
         <div className="fixed inset-0 z-100 flex items-center justify-center bg-zinc-900/25 p-4 backdrop-blur-sm">

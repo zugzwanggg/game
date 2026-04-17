@@ -4,6 +4,7 @@ import {
   HeartPulse,
   Moon,
   Search,
+  Send,
   Skull,
   Sun,
   Timer,
@@ -15,6 +16,8 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { MobileChatDock, MOBILE_CHAT_DOCK_PAD_CLASS } from '../../components/chat/MobileChatDock'
+import { chatListScrollKey, useChatScrollToBottom } from '../../hooks/useChatScrollToBottom'
 import Avatar from '../../components/ui/Avatar'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -168,7 +171,8 @@ export default function MafiaGame() {
   const [detectiveNightCommitted, setDetectiveNightCommitted] = useState(false)
   const [chatInput, setChatInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [mobileTab, setMobileTab] = useState<'round' | 'chat' | 'players'>('round')
+  const [mobileTab, setMobileTab] = useState<'round' | 'players'>('round')
+  const [mobileChatOpen, setMobileChatOpen] = useState(false)
   const [daySkipClicked, setDaySkipClicked] = useState(false)
   const [nightSkipClicked, setNightSkipClicked] = useState(false)
   const [announcementOpen, setAnnouncementOpen] = useState(false)
@@ -216,6 +220,29 @@ export default function MafiaGame() {
 
   const chatLockedAtNight =
     status === 'night' && role?.role !== 'detective'
+
+  const mafiaChatMessageList = useMemo(
+    () =>
+      messages.length ? (
+        messages.map((m) => (
+          <div
+            key={m.id}
+            className={[
+              'rounded-xl px-3 py-2 text-sm',
+              m.variant === 'system' ? 'bg-base text-muted' : 'bg-base text-text',
+            ].join(' ')}
+          >
+            <span className="font-semibold text-accent">{m.author}:</span> {m.text}
+          </div>
+        ))
+      ) : (
+        <div className="py-6 text-center text-sm text-muted">No messages yet.</div>
+      ),
+    [messages],
+  )
+
+  const mafiaChatScrollKey = useMemo(() => chatListScrollKey(messages), [messages])
+  const mafiaDesktopChatRef = useChatScrollToBottom(mafiaChatScrollKey)
 
   const mafiaTeamSize =
     role?.role === 'mafia' ? 1 + (role.teammateIds?.length ?? 0) : 0
@@ -560,7 +587,9 @@ export default function MafiaGame() {
     'min-h-0 max-h-[min(300px,40vh)] overflow-y-auto overscroll-contain rounded-xl border border-border/50 bg-base/40 p-2 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)] sm:max-h-[min(360px,48vh)]'
 
   return (
-    <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6 sm:py-5">
+    <div
+      className={`relative flex h-full min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6 sm:py-5 ${MOBILE_CHAT_DOCK_PAD_CLASS}`}
+    >
       <RoomPresenceBanner
         message={presencePayload?.text ?? null}
         kind={presencePayload?.kind ?? null}
@@ -664,7 +693,6 @@ export default function MafiaGame() {
       <div className="mb-3 flex shrink-0 gap-2 lg:hidden">
         {[
           { id: 'round' as const, label: 'Round' },
-          { id: 'chat' as const, label: 'Chat' },
           { id: 'players' as const, label: 'Players' },
         ].map((t) => (
           <button
@@ -1124,14 +1152,8 @@ export default function MafiaGame() {
           </div>
         </div>
 
-        <div
-          className={[
-            'flex min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface lg:max-h-full lg:w-[380px] lg:shrink-0',
-            mobileTab === 'chat' ? 'flex' : 'hidden',
-            'lg:flex',
-          ].join(' ')}
-        >
-          <div className="border-b border-border px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted">
+        <div className="hidden w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface lg:flex lg:max-h-full lg:min-h-0 lg:w-[380px] lg:shrink-0">
+          <div className="shrink-0 border-b border-border px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted">
             Chat{' '}
             {chatLockedAtNight
               ? '(closed at night)'
@@ -1139,22 +1161,13 @@ export default function MafiaGame() {
                 ? '(you can chat while choosing your action)'
                 : ''}
           </div>
-          <div className="min-h-0 flex-1 overflow-auto px-3 py-3">
-            <div className="space-y-2">
-              {messages.map((m) => (
-                <div
-                  key={m.id}
-                  className={[
-                    'rounded-xl px-3 py-2 text-sm',
-                    m.variant === 'system' ? 'bg-base text-muted' : 'bg-base text-text',
-                  ].join(' ')}
-                >
-                  <span className="font-semibold text-accent">{m.author}:</span> {m.text}
-                </div>
-              ))}
-            </div>
+          <div
+            ref={mafiaDesktopChatRef}
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 [scrollbar-gutter:stable]"
+          >
+            <div className="space-y-2">{mafiaChatMessageList}</div>
           </div>
-          <form onSubmit={sendChat} className="border-t border-border p-3">
+          <form onSubmit={sendChat} className="shrink-0 border-t border-border p-3">
             <div className="flex gap-2">
               <input
                 value={chatInput}
@@ -1281,6 +1294,38 @@ export default function MafiaGame() {
           </div>
         </div>
       </div>
+
+      <MobileChatDock
+        title="Chat"
+        subtitle="Tap ↑ for history"
+        expanded={mobileChatOpen}
+        onExpandedChange={setMobileChatOpen}
+        scrollToBottomKey={mafiaChatScrollKey}
+        messages={<div className="space-y-2">{mafiaChatMessageList}</div>}
+        composer={
+          <form className="flex w-full gap-2" onSubmit={sendChat}>
+            <input
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder={chatLockedAtNight ? 'Chat closed at night' : 'Message the room…'}
+              disabled={
+                chatLockedAtNight || (playerId != null && aliveSet[playerId] === false)
+              }
+              className="min-w-0 flex-1 rounded-xl border border-border bg-base px-3 py-2.5 text-sm text-text placeholder:text-muted outline-none focus:border-accent/60 disabled:opacity-50"
+              autoComplete="off"
+            />
+            <Button
+              type="submit"
+              variant="teal"
+              size="md"
+              className="shrink-0 px-3"
+              disabled={chatLockedAtNight || !chatInput.trim()}
+            >
+              <Send size={16} />
+            </Button>
+          </form>
+        }
+      />
 
       {privateInvestigation && (
         <div
