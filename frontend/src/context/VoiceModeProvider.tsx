@@ -6,7 +6,7 @@ import {
 } from 'react'
 import { VoiceModeContext } from './voiceModeContext'
 
-const STORAGE_KEY = 'gamemaxxing_voice_mode'
+const STORAGE_KEY = 'unplyd_voice_mode'
 
 function readStored(): boolean {
   try {

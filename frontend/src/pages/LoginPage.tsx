@@ -1,5 +1,5 @@
 import { Lock, Mail } from 'lucide-react'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AuthChrome } from '../components/auth/AuthChrome'
 import {
@@ -17,6 +17,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('oauth') === 'error') {
+      setError('Google sign-in failed. Please try again.')
+      const url = new URL(window.location.href)
+      url.searchParams.delete('oauth')
+      url.searchParams.delete('reason')
+      window.history.replaceState({}, '', url.pathname + url.search + url.hash)
+    }
+  }, [location.search])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()

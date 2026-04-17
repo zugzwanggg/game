@@ -1,5 +1,5 @@
 /** Mirrors httpOnly cookie auth when cross-site cookies fail (common on mobile Safari / Chrome). */
-const KEY = 'gamemaxxing_auth_token'
+const KEY = 'unplyd_auth_token'
 
 export function getStoredAuthToken(): string | null {
   try {

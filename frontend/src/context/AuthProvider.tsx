@@ -73,7 +73,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    void refresh()
+    void (async () => {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('oauth') === 'success') {
+        try {
+          const data = await apiFetch<{ token: string }>('/auth/sync-session', { method: 'POST' })
+          if (data.token) setStoredAuthToken(data.token)
+          resetSocket()
+        } catch {
+          /* cookie-only session may still work for /me */
+        }
+        const url = new URL(window.location.href)
+        url.searchParams.delete('oauth')
+        window.history.replaceState({}, '', url.pathname + url.search + url.hash)
+      }
+      await refresh()
+    })()
   }, [])
 
   const value = useMemo<AuthContextValue>(() => ({ principal, ready, refresh, login, signup, guest, logout }), [

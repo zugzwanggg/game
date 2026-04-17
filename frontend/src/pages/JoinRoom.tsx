@@ -44,8 +44,8 @@ export default function JoinRoom() {
       />
 
       <div className="relative w-full max-w-sm">
-        <h1 className="mb-8 text-center text-xl font-extrabold tracking-tight text-text">
-          Gamemaxxing
+        <h1 className="mb-8 text-center text-2xl font-extrabold tracking-tight text-text sm:text-3xl">
+          unplyd
         </h1>
 
         <div className="glass rounded-2xl p-7">

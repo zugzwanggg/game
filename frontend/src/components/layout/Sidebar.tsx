@@ -96,8 +96,8 @@ export default function Sidebar({ mobileOpen = true, onRequestClose }: SidebarPr
       }`}
     >
       <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-4 sm:px-5 sm:py-5">
-        <span className="text-white font-extrabold tracking-tight">
-          Gamemaxxing
+        <span className="text-lg font-extrabold tracking-tight text-white sm:text-xl">
+          unplyd
         </span>
         <button
           type="button"

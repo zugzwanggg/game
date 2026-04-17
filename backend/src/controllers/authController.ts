@@ -2,7 +2,7 @@ import type { Request, Response } from 'express'
 import crypto from 'node:crypto'
 import { hashPassword, verifyPassword } from '../auth/password.js'
 import { AUTH_COOKIE_NAME, getAuthSecret, optionalAuth, type AuthedRequest } from '../auth/middleware.js'
-import { signToken } from '../auth/token.js'
+import { signToken, verifyToken } from '../auth/token.js'
 import { createUser, findUserByEmail, findUserById } from '../db/users.js'
 
 const USER_TOKEN_TTL_SEC = Number(process.env.USER_TOKEN_TTL_SEC ?? 60 * 60 * 24)
@@ -79,7 +79,11 @@ export async function login(req: Request, res: Response) {
   }
 
   const user = await findUserByEmail(email)
-  if (!user || !(await verifyPassword(password, user.passwordHash))) {
+  if (!user || !user.passwordHash) {
+    res.status(401).json({ error: 'invalid_credentials' })
+    return
+  }
+  if (!(await verifyPassword(password, user.passwordHash))) {
     res.status(401).json({ error: 'invalid_credentials' })
     return
   }
@@ -109,6 +113,21 @@ export async function guest(req: Request, res: Response) {
 export async function logout(_req: Request, res: Response) {
   res.clearCookie(AUTH_COOKIE_NAME, clearAuthCookieOpts())
   res.json({ ok: true })
+}
+
+/** Expose JWT to SPA localStorage (Socket.IO + Bearer) after httpOnly cookie was set (e.g. Google OAuth redirect). */
+export async function syncSession(req: Request, res: Response) {
+  const cookieToken = (req as any).cookies?.[AUTH_COOKIE_NAME] as string | undefined
+  if (!cookieToken) {
+    res.status(401).json({ error: 'no_session' })
+    return
+  }
+  const payload = verifyToken(cookieToken, getAuthSecret())
+  if (!payload || payload.typ !== 'user') {
+    res.status(401).json({ error: 'no_session' })
+    return
+  }
+  res.json({ token: cookieToken })
 }
 
 export async function me(req: AuthedRequest, res: Response) {

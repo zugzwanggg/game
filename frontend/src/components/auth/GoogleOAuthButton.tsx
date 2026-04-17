@@ -1,3 +1,5 @@
+import { getApiBase } from '../../lib/api'
+
 function GoogleMark() {
   return (
     <svg
@@ -37,9 +39,9 @@ export function GoogleOAuthButton({ action }: GoogleOAuthButtonProps) {
     action === 'login' ? 'Continue with Google' : 'Sign up with Google'
 
   function handleClick() {
-    const base = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
-    // TODO: align with backend Google OAuth start URL (e.g. /api/auth/google)
-    window.location.assign(`${String(base).replace(/\/$/, '')}/api/auth/google`)
+    const base = getApiBase()
+    const next = encodeURIComponent('/games')
+    window.location.assign(`${base}/auth/google?return=${next}`)
   }
 
   return (

@@ -48,9 +48,9 @@ export default function AppShell() {
           </button>
           <Link
             to="/games"
-            className="min-w-0 truncate text-base font-extrabold tracking-tight text-text"
+            className="min-w-0 truncate text-lg font-extrabold tracking-tight text-text sm:text-xl"
           >
-            Gamemaxxing
+            unplyd
           </Link>
         </header>
         <main

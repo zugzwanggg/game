@@ -3,7 +3,7 @@
 
 services:
   - type: web
-    name: gamemaxxing-api
+    name: unplyd-api
     runtime: node
     plan: free
     region: oregon

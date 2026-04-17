@@ -1,5 +1,5 @@
 {
-  "name": "gamemaxxing",
+  "name": "unplyd",
   "private": true,
   "description": "Monorepo root — deploy only when Render Root Directory is empty (repo root). Prefer Root Directory = backend.",
   "scripts": {

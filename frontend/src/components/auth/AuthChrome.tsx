@@ -20,9 +20,9 @@ export function AuthChrome({ children }: AuthChromeProps) {
       <div className="relative w-full max-w-sm">
         <Link
           to="/games"
-          className="mb-8 block text-center text-xl font-extrabold tracking-tight text-text transition-colors hover:text-accent"
+          className="mb-8 block text-center text-2xl font-extrabold tracking-tight text-text transition-colors hover:text-accent sm:text-3xl"
         >
-          Gamemaxxing
+          unplyd
         </Link>
         {children}
       </div>

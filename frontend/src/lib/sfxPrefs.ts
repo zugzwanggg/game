@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'gamemaxxing_sfx_enabled'
+const STORAGE_KEY = 'unplyd_sfx_enabled'
 
 export function isSfxEnabled(): boolean {
   try {

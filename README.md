@@ -1,4 +1,4 @@
-# Gamemaxxing
+# unplyd
 
 Real-time party games (drawing, meme battle) with rooms, Socket.IO, and optional accounts.
 
