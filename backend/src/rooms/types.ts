@@ -13,9 +13,11 @@ export type RoomPlayer = {
 
 export type DrawingStroke = {
   id: string
+  /** 0..1 in the canvas CSS box, shared across all screen sizes */
   points: { x: number; y: number }[]
   color: string
-  width: number
+  /** Line thickness as a fraction of min(canvas width, height) */
+  widthNorm: number
 }
 
 export type MemeGif = {

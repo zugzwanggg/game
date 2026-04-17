@@ -25,13 +25,15 @@ type DrawerTurnPhase = 'drawing' | 'reveal'
 
 type GamePhase = 'playing' | 'leaderboard'
 
+/** Normalized to the canvas CSS box: x,y in [0, 1]. Shared across all clients/screen sizes. */
 type Point = { x: number; y: number }
 
 type Stroke = {
   id: string
   points: Point[]
   color: string
-  width: number
+  /** Line thickness as a fraction of `min(canvasCssWidth, canvasCssHeight)` (same visual weight on any device). */
+  widthNorm: number
 }
 
 type ChatMessage = {
@@ -79,23 +81,56 @@ function formatDrawerCountdown(totalSeconds: number) {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
+function clamp01(n: number) {
+  if (!Number.isFinite(n)) return 0
+  return Math.min(1, Math.max(0, n))
+}
+
+/** `cssW` / `cssH` = canvas size in CSS pixels (same space as stored normalized points). */
 function drawStroke(
   ctx: CanvasRenderingContext2D,
   points: Point[],
   color: string,
-  width: number,
+  widthNorm: number,
+  cssW: number,
+  cssH: number,
 ) {
   if (points.length < 2) return
+  const m = Math.min(cssW, cssH)
   ctx.strokeStyle = color
-  ctx.lineWidth = width
+  ctx.lineWidth = Math.max(0.75, widthNorm * m)
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   ctx.beginPath()
-  ctx.moveTo(points[0].x, points[0].y)
+  ctx.moveTo(points[0].x * cssW, points[0].y * cssH)
   for (let i = 1; i < points.length; i++) {
-    ctx.lineTo(points[i].x, points[i].y)
+    ctx.lineTo(points[i].x * cssW, points[i].y * cssH)
   }
   ctx.stroke()
+}
+
+/** Accept new normalized strokes; drop legacy pixel-based strokes from older clients. */
+function parseStroke(raw: unknown): Stroke | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  if (typeof o.id !== 'string' || !Array.isArray(o.points) || o.points.length < 2) return null
+  const color = typeof o.color === 'string' ? o.color : DEFAULT_BRUSH
+  let widthNorm: number | undefined
+  if (typeof o.widthNorm === 'number' && o.widthNorm > 0 && o.widthNorm <= 1) {
+    widthNorm = o.widthNorm
+  }
+  if (widthNorm === undefined) return null
+  const pts: Point[] = []
+  for (const p of o.points) {
+    if (!p || typeof p !== 'object') return null
+    const rec = p as Record<string, unknown>
+    const x = Number(rec.x)
+    const y = Number(rec.y)
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+    if (x > 1.001 || y > 1.001 || x < -0.001 || y < -0.001) return null
+    pts.push({ x: clamp01(x), y: clamp01(y) })
+  }
+  return { id: o.id, points: pts, color, widthNorm }
 }
 
 export default function GuessDrawingGame() {
@@ -208,7 +243,10 @@ export default function GuessDrawingGame() {
       } else if (dg?.status === 'playing') {
         setSolvedByName(null)
       }
-      if (state?.drawing?.strokes) setStrokes(state.drawing.strokes as Stroke[])
+      if (state?.drawing?.strokes)
+        setStrokes(
+          (state.drawing.strokes as unknown[]).map(parseStroke).filter((s): s is Stroke => s !== null),
+        )
       if (Array.isArray(state?.chat)) {
         setMessages(
           state.chat.map((m: any) => ({
@@ -226,8 +264,10 @@ export default function GuessDrawingGame() {
       }
     }
 
-    const onStroke = (s: any) => {
-      setStrokes((prev) => [...prev, s as Stroke])
+    const onStroke = (s: unknown) => {
+      const stroke = parseStroke(s)
+      if (!stroke) return
+      setStrokes((prev) => [...prev, stroke])
     }
     const onClear = () => setStrokes([])
     const onChat = (m: any) => {
@@ -299,15 +339,12 @@ export default function GuessDrawingGame() {
     ctx.fillRect(0, 0, w, h)
 
     for (const s of strokesRef.current) {
-      drawStroke(ctx, s.points, s.color, s.width)
+      drawStroke(ctx, s.points, s.color, s.widthNorm, w, h)
     }
     if (draftRef.current.length > 1) {
-      drawStroke(
-        ctx,
-        draftRef.current,
-        brushColorRef.current,
-        brushWidthRef.current,
-      )
+      const m = Math.min(w, h)
+      const draftNorm = Math.min(1, brushWidthRef.current / m)
+      drawStroke(ctx, draftRef.current, brushColorRef.current, draftNorm, w, h)
     }
   }, [])
 
@@ -323,26 +360,32 @@ export default function GuessDrawingGame() {
     return () => ro.disconnect()
   }, [paint])
 
-  const clientToCanvas = useCallback((e: ReactPointerEvent<HTMLCanvasElement>) => {
+  /** Canvas-local coordinates in 0..1 (same on phone and desktop once rendered). */
+  const clientToNorm = useCallback((e: ReactPointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return { x: 0, y: 0 }
     const rect = canvas.getBoundingClientRect()
+    if (rect.width < 1 || rect.height < 1) return { x: 0, y: 0 }
     return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
+      x: clamp01((e.clientX - rect.left) / rect.width),
+      y: clamp01((e.clientY - rect.top) / rect.height),
     }
   }, [])
 
   const commitDraft = useCallback(() => {
     setDraftPoints((pts) => {
       if (pts.length > 1) {
+        const wrap = wrapRef.current
+        const cw = wrap?.clientWidth ?? 1
+        const ch = wrap?.clientHeight ?? 1
+        const m = Math.min(cw, ch)
         const color = brushColorRef.current
-        const width = brushWidthRef.current
-        const stroke = {
+        const widthNorm = Math.min(1, brushWidthRef.current / m)
+        const stroke: Stroke = {
           id: crypto.randomUUID(),
           points: pts,
           color,
-          width,
+          widthNorm,
         }
         setStrokes((prev) => [...prev, stroke])
         if (isOnline && roomCode) {
@@ -515,7 +558,7 @@ export default function GuessDrawingGame() {
       return
     e.currentTarget.setPointerCapture(e.pointerId)
     drawingRef.current = true
-    setDraftPoints([clientToCanvas(e)])
+    setDraftPoints([clientToNorm(e)])
   }
 
   const onPointerMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -527,7 +570,7 @@ export default function GuessDrawingGame() {
       drawerTurnPhase !== 'drawing'
     )
       return
-    setDraftPoints((prev) => [...prev, clientToCanvas(e)])
+    setDraftPoints((prev) => [...prev, clientToNorm(e)])
   }
 
   const onPointerUp = (e: ReactPointerEvent<HTMLCanvasElement>) => {

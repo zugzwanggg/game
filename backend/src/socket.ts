@@ -1086,8 +1086,28 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode) return
       const room = getRoom(joinedCode)
       if (!room) return
-      // Trust-but-verify minimal shape.
-      if (!payload || typeof payload.id !== 'string' || !Array.isArray(payload.points)) return
+      if (
+        !payload ||
+        typeof payload.id !== 'string' ||
+        !Array.isArray(payload.points) ||
+        typeof payload.widthNorm !== 'number' ||
+        payload.widthNorm <= 0 ||
+        payload.widthNorm > 1
+      )
+        return
+      for (const p of payload.points) {
+        if (
+          !p ||
+          typeof p !== 'object' ||
+          typeof (p as { x?: unknown }).x !== 'number' ||
+          typeof (p as { y?: unknown }).y !== 'number' ||
+          (p as { x: number }).x < 0 ||
+          (p as { x: number }).x > 1 ||
+          (p as { y: number }).y < 0 ||
+          (p as { y: number }).y > 1
+        )
+          return
+      }
       room.drawing.strokes.push(payload)
       if (room.drawing.strokes.length > 500) room.drawing.strokes = room.drawing.strokes.slice(-500)
       touchRoom(joinedCode)
