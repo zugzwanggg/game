@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { MobileChatFloatingToasts } from '../../components/chat/MobileChatFloatingToasts'
 import { MobileChatDock, MOBILE_CHAT_DOCK_PAD_CLASS } from '../../components/chat/MobileChatDock'
 import { chatListScrollKey, useChatScrollToBottom } from '../../hooks/useChatScrollToBottom'
 import { useMediaQueryLg } from '../../hooks/useMediaQueryLg'
@@ -1298,6 +1299,8 @@ export default function MafiaGame() {
           </div>
         </div>
       </div>
+
+      <MobileChatFloatingToasts messages={messages} expanded={mobileChatOpen} theme="shell" />
 
       <MobileChatDock
         title="Chat"

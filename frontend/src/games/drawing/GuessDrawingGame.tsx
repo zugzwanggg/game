@@ -9,6 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { MobileChatFloatingToasts } from '../../components/chat/MobileChatFloatingToasts'
 import { MobileChatDock, MOBILE_CHAT_DOCK_PAD_CLASS } from '../../components/chat/MobileChatDock'
 import Button from '../../components/ui/Button'
 import { RoomPresenceBanner } from '../../components/ui/RoomPresenceBanner'
@@ -1146,6 +1147,13 @@ export default function GuessDrawingGame() {
           </div>
         </section>
       </div>
+
+      <MobileChatFloatingToasts
+        messages={messages}
+        expanded={mobileGuessesOpen}
+        enabled={role === 'guesser'}
+        theme="light"
+      />
 
       <MobileChatDock
         title="Guesses"

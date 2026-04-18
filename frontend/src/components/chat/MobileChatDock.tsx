@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type FocusEvent as ReactFocusEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
@@ -104,6 +105,14 @@ export function MobileChatDock({
     if (!s || s.mode !== 'collapsed' || s.pointerId !== e.pointerId) return
     void e
     /* Intentionally no translateY while dragging — dock stays fixed; release opens if threshold met. */
+  }, [])
+
+  const onComposerFocusCapture = useCallback((e: ReactFocusEvent<HTMLDivElement>) => {
+    const t = e.target
+    if (!(t instanceof HTMLInputElement) && !(t instanceof HTMLTextAreaElement)) return
+    requestAnimationFrame(() => {
+      t.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    })
   }, [])
 
   const onCollapsedPointerUp = useCallback(
@@ -207,7 +216,9 @@ export function MobileChatDock({
           <ChevronUp size={20} strokeWidth={2} />
         )}
       </button>
-      <div className="min-w-0 flex-1">{composer}</div>
+      <div className="min-w-0 flex-1" onFocusCapture={onComposerFocusCapture}>
+        {composer}
+      </div>
     </div>
   )
 

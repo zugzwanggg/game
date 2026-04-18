@@ -68,11 +68,24 @@ export function useVisualViewportKeyboard(): VisualViewportLayout {
     const update = () => {
       setLayout(readLayout())
     }
+    /**
+     * After focusing an input, `visualViewport` often updates a frame (or two) later than `focusin`.
+     * Without this, `bottom` on fixed bottom bars can stay stale and sit under the keyboard.
+     */
+    const syncAfterKeyboardFrame = () => {
+      update()
+      requestAnimationFrame(() => {
+        update()
+        requestAnimationFrame(update)
+      })
+    }
     if (vv) {
       vv.addEventListener('resize', update)
       vv.addEventListener('scroll', update)
     }
     window.addEventListener('resize', update)
+    document.addEventListener('focusin', syncAfterKeyboardFrame)
+    document.addEventListener('focusout', syncAfterKeyboardFrame)
     update()
     return () => {
       if (vv) {
@@ -80,6 +93,8 @@ export function useVisualViewportKeyboard(): VisualViewportLayout {
         vv.removeEventListener('scroll', update)
       }
       window.removeEventListener('resize', update)
+      document.removeEventListener('focusin', syncAfterKeyboardFrame)
+      document.removeEventListener('focusout', syncAfterKeyboardFrame)
     }
   }, [])
 
