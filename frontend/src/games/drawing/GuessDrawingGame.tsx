@@ -730,6 +730,31 @@ export default function GuessDrawingGame() {
     [messages],
   )
 
+  /** Mobile dock only — matches Mafia chat shell (desktop panel keeps zinc styling above). */
+  const mobileGuessesMessageList = useMemo(
+    () =>
+      messages.length ? (
+        messages.map((m) => (
+          <div
+            key={m.id}
+            className={[
+              'rounded-xl px-3 py-2 text-sm',
+              m.variant === 'system'
+                ? 'bg-base text-muted'
+                : m.variant === 'correct'
+                  ? 'border border-teal/30 bg-teal/10 font-semibold text-text'
+                  : 'bg-base text-text',
+            ].join(' ')}
+          >
+            <span className="font-semibold text-accent">{m.author}:</span> {m.text}
+          </div>
+        ))
+      ) : (
+        <div className="py-6 text-center text-sm text-muted">No messages yet.</div>
+      ),
+    [messages],
+  )
+
   const guessesScrollKey = useMemo(() => chatListScrollKey(messages), [messages])
   const guessesListRef = useChatScrollToBottom(guessesScrollKey)
 
@@ -1124,12 +1149,12 @@ export default function GuessDrawingGame() {
 
       <MobileChatDock
         title="Guesses"
-        subtitle="Half screen — drag strip up to open; drag header up/down in chat"
+        subtitle="Tap ↑ for history · drag strip up to open"
         expanded={mobileGuessesOpen}
         onExpandedChange={setMobileGuessesOpen}
         scrollToBottomKey={guessesScrollKey}
-        expandedSheet="half"
-        messages={<div className="space-y-2">{guessesMessageList}</div>}
+        appearance="app"
+        messages={<div className="space-y-2">{mobileGuessesMessageList}</div>}
         composer={
           role === 'guesser' && !roundSolved && gamePhase === 'playing' ? (
             <form className="flex w-full gap-2" onSubmit={sendGuess}>
@@ -1137,20 +1162,15 @@ export default function GuessDrawingGame() {
                 value={guessInput}
                 onChange={(e) => setGuessInput(e.target.value)}
                 placeholder="Type your guess…"
-                className="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-accent/50 focus:ring-1 focus:ring-accent/25"
+                className="min-w-0 flex-1 rounded-xl border border-border bg-base px-3 py-2.5 text-sm text-text placeholder:text-muted outline-none focus:border-accent/60"
                 autoComplete="off"
               />
-              <Button
-                type="submit"
-                variant="primary"
-                size="md"
-                className="shrink-0 gap-1.5 px-3 shadow-glow-accent transition-all duration-150 hover:brightness-110 active:scale-95"
-              >
+              <Button type="submit" variant="teal" size="md" className="shrink-0 px-3">
                 <Send size={16} />
               </Button>
             </form>
           ) : (
-            <div className="rounded-xl border border-zinc-200/90 bg-zinc-50 px-2 py-2 text-center text-[10px] leading-snug text-zinc-500">
+            <div className="rounded-xl border border-border bg-base px-2 py-2 text-center text-[10px] leading-snug text-muted">
               {gamePhase === 'leaderboard'
                 ? 'Leaderboard open — use desktop panel or expand to read.'
                 : role === 'drawer' && drawerTurnPhase === 'reveal'

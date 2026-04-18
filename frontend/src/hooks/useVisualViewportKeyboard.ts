@@ -10,6 +10,11 @@ export type VisualViewportLayout = {
   overlayHeight: number
 }
 
+/** Pixels below the visual viewport before the layout viewport bottom (browser chrome, home indicator, etc.). */
+function layoutGapBelowVisualViewport(vv: VisualViewport): number {
+  return Math.max(0, window.innerHeight - vv.offsetTop - vv.height)
+}
+
 function readLayout(): VisualViewportLayout {
   if (typeof window === 'undefined') {
     return {
@@ -30,13 +35,24 @@ function readLayout(): VisualViewportLayout {
       overlayHeight: window.innerHeight,
     }
   }
-  const bottomInset = Math.max(0, window.innerHeight - vv.offsetTop - vv.height)
+  const bottomInset = layoutGapBelowVisualViewport(vv)
+  /**
+   * Full-screen overlays must cover the layout viewport when the keyboard is closed. Using only `vv.height`
+   * leaves a strip below the visual viewport (common on mobile browsers) — looks like the sheet is “at the
+   * top” with empty space underneath. When the gap is small (not the virtual keyboard), stretch height to
+   * `innerHeight - offsetTop`. When the keyboard is likely open (large gap), keep `vv.height` so we don’t
+   * paint behind the keyboard if the layout viewport did not resize.
+   */
+  const keyboardLikelyOpen = bottomInset > 96
+  const overlayHeight = keyboardLikelyOpen
+    ? vv.height
+    : Math.max(vv.height, window.innerHeight - vv.offsetTop)
   return {
     bottomInset,
     overlayTop: vv.offsetTop,
     overlayLeft: vv.offsetLeft,
     overlayWidth: vv.width,
-    overlayHeight: vv.height,
+    overlayHeight,
   }
 }
 
