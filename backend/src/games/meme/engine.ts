@@ -77,6 +77,9 @@ export function startMemeMatch(room: RoomState, t: number) {
   const m = room.memeGame
   if (!m || room.game !== 'meme') return
   if (room.players.length < 2) return
+  for (const p of room.players) {
+    p.spectator = false
+  }
   m.matchId += 1
   m.round = 1
   m.scores = {}

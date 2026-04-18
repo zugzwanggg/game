@@ -24,6 +24,7 @@ import Avatar from '../../components/ui/Avatar'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import { RoomPresenceBanner } from '../../components/ui/RoomPresenceBanner'
+import { SpectatorBanner } from '../../components/ui/SpectatorBanner'
 import { RoomVoiceDock } from '../../components/voice/RoomVoiceDock'
 import { useRoomPresenceNotification } from '../../hooks/useRoomPresenceNotification'
 import { removeRecentRoom } from '../../lib/recentRooms'
@@ -48,6 +49,7 @@ function uid() {
 
 type MafiaRoleWire =
   | { role: null }
+  | { role: 'spectator' }
   | { role: 'mafia'; teammateIds: string[] }
   | { role: 'town' | 'doctor' | 'detective' }
 
@@ -159,7 +161,7 @@ export default function MafiaGame() {
   const isOnline = Boolean(roomCode)
 
   const [playerId, setPlayerId] = useState<string | null>(null)
-  const [players, setPlayers] = useState<{ id: string; displayName: string }[]>([])
+  const [players, setPlayers] = useState<{ id: string; displayName: string; spectator?: boolean }[]>([])
   const [createdByUserId, setCreatedByUserId] = useState<string | null>(null)
   const [mafia, setMafia] = useState<MafiaGameWire | null>(null)
   const [timers, setTimers] = useState<TimersWire>({})
@@ -180,6 +182,7 @@ export default function MafiaGame() {
   const [announcementOpen, setAnnouncementOpen] = useState(false)
   const lastAnnouncementKeyRef = useRef<string>('')
   const [detectiveCheckTargetId, setDetectiveCheckTargetId] = useState<string | null>(null)
+  const [detectiveKillTargetId, setDetectiveKillTargetId] = useState<string | null>(null)
   const [privateInvestigation, setPrivateInvestigation] = useState<{
     targetId: string
     role: string
@@ -220,8 +223,11 @@ export default function MafiaGame() {
   const matchActive = status !== 'lobby' && status !== 'results'
   const showAliveDeadRoster = status !== 'lobby'
 
-  const chatLockedAtNight =
-    status === 'night' && role?.role !== 'detective'
+  const chatLockedAtNight = status === 'night'
+
+  const isSpectator =
+    role?.role === 'spectator' ||
+    Boolean(playerId && players.some((p) => p.id === playerId && p.spectator))
 
   const mafiaChatMessageList = useMemo(
     () =>
@@ -275,9 +281,10 @@ export default function MafiaGame() {
         const next = (state.players as any[]).map((p) => ({
           id: String(p.id),
           displayName: String(p.displayName ?? 'Player'),
+          spectator: Boolean(p.spectator),
         }))
         setPlayers(next)
-        handlePlayersSnapshot(next)
+        handlePlayersSnapshot(next.map(({ id, displayName }) => ({ id, displayName })))
       }
       if (typeof state?.createdByUserId === 'string') setCreatedByUserId(state.createdByUserId)
       const mg = state.mafiaGame as MafiaGameWire | null | undefined
@@ -297,6 +304,10 @@ export default function MafiaGame() {
     }
 
     const onRole = (p: any) => {
+      if (p?.role === 'spectator') {
+        setRole({ role: 'spectator' })
+        return
+      }
       if (p?.role === 'mafia' && Array.isArray(p?.teammateIds)) {
         setRole({ role: 'mafia', teammateIds: p.teammateIds.map((x: any) => String(x)) })
       } else if (p?.role === 'town' || p?.role === 'doctor' || p?.role === 'detective') {
@@ -309,6 +320,7 @@ export default function MafiaGame() {
     const onDetectiveCheckAck = (p: { targetPlayerId?: string }) => {
       const t = p?.targetPlayerId
       if (t) setDetectiveCheckTargetId(String(t))
+      setDetectiveKillTargetId(null)
       setDetectiveNightCommitted(true)
     }
 
@@ -330,7 +342,10 @@ export default function MafiaGame() {
       setDoctorCannotProtectPlayerId(p?.cannotProtectPlayerId != null ? String(p.cannotProtectPlayerId) : null)
     }
 
-    const onDetectiveKillAck = () => {
+    const onDetectiveKillAck = (p: { targetPlayerId?: string }) => {
+      const t = p?.targetPlayerId
+      if (t) setDetectiveKillTargetId(String(t))
+      setDetectiveCheckTargetId(null)
       setDetectiveNightCommitted(true)
     }
 
@@ -392,6 +407,7 @@ export default function MafiaGame() {
     setMyKillVote(null)
     setInvestigateHint(null)
     setDetectiveCheckTargetId(null)
+    setDetectiveKillTargetId(null)
     setPrivateInvestigation(null)
     setDoctorProtectTarget(null)
     setDetectiveNightCommitted(false)
@@ -410,6 +426,7 @@ export default function MafiaGame() {
       setDoctorProtectTarget(null)
       setDetectiveNightCommitted(false)
       setDetectiveCheckTargetId(null)
+      setDetectiveKillTargetId(null)
     }
   }, [mafia?.status])
 
@@ -473,6 +490,8 @@ export default function MafiaGame() {
 
   const sendChat = (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSpectator) return
+    if (status === 'night') return
     if (!roomCode) return
     const text = chatInput.trim()
     if (!text) return
@@ -481,6 +500,7 @@ export default function MafiaGame() {
   }
 
   const castKillVote = (targetPlayerId: string) => {
+    if (isSpectator) return
     if (!roomCode || !playerId) return
     if (targetPlayerId === playerId) return
     playMafiaVoteSfx()
@@ -489,22 +509,26 @@ export default function MafiaGame() {
   }
 
   const doctorSave = (targetPlayerId: string) => {
+    if (isSpectator) return
     if (!roomCode || !playerId) return
     if (doctorCannotProtectPlayerId != null && targetPlayerId === doctorCannotProtectPlayerId) return
     getSocket().emit('game:mafia:doctor_save', { targetPlayerId })
   }
 
   const detectiveProbe = (targetPlayerId: string) => {
+    if (isSpectator) return
     if (!roomCode || !playerId || detectiveNightCommitted) return
     getSocket().emit('game:mafia:detective_investigate', { targetPlayerId })
   }
 
   const detectiveKill = (targetPlayerId: string) => {
+    if (isSpectator) return
     if (!roomCode || !playerId || detectiveNightCommitted) return
     getSocket().emit('game:mafia:detective_kill', { targetPlayerId })
   }
 
   const castDayVote = (targetPlayerId: string) => {
+    if (isSpectator) return
     if (!roomCode || !playerId) return
     if (targetPlayerId === playerId) return
     playMafiaVoteSfx()
@@ -513,12 +537,14 @@ export default function MafiaGame() {
   }
 
   const requestSkipToVote = () => {
+    if (isSpectator) return
     if (!roomCode || !imAlive) return
     setDaySkipClicked(true)
     getSocket().emit('game:mafia:day_skip')
   }
 
   const requestSkipNight = () => {
+    if (isSpectator) return
     if (!roomCode) return
     if (role?.role === 'mafia' && !myKillVote) return
     if (role?.role !== 'mafia' && role?.role !== 'doctor' && role?.role !== 'detective') return
@@ -598,6 +624,12 @@ export default function MafiaGame() {
         kind={presencePayload?.kind ?? null}
         onDismiss={dismissPresence}
       />
+
+      {isSpectator ? (
+        <div className="mb-4 shrink-0">
+          <SpectatorBanner />
+        </div>
+      ) : null}
 
       <div className="mb-4 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
@@ -785,10 +817,9 @@ export default function MafiaGame() {
                 </div>
               </div>
               <p className="shrink-0 text-sm text-muted">
-                Chat is closed at night for most roles; the Detective can still chat while choosing an action.
-                Mafia: agree on a kill (vote first, then you can skip). Doctor & Detective: use your actions or
-                tap Skip night. The night only ends early when every player with a night role has agreed to
-                skip.
+                Chat is closed at night — no one can type until morning. Mafia: agree on a kill (vote first,
+                then you can skip). Doctor & Detective: use your actions or tap Skip night. The night only ends
+                early when every player with a night role has agreed to skip.
               </p>
 
               {role?.role === 'mafia' && imAlive && (
@@ -920,69 +951,86 @@ export default function MafiaGame() {
               {role?.role === 'detective' && imAlive && (
                 <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
                   <div className="shrink-0 text-xs font-semibold uppercase text-muted">Investigate or kill</div>
-                  <p className="shrink-0 mb-1 text-sm text-muted">
-                    Choose <span className="font-medium text-text">Check</span> to investigate. You learn their role
-                    at dawn, not immediately. Or use <span className="font-medium text-rose-300">Kill</span> to try to
-                    eliminate them at night (Doctor can still protect). You get{' '}
-                    <span className="font-medium text-text">one</span> action per night (check or kill). You can use
-                    chat while you decide.
-                  </p>
-                  {detectiveNightCommitted && (
-                    <p className="shrink-0 mb-2 text-sm font-medium text-sky-300">Night action locked in for this night.</p>
-                  )}
+                  {!detectiveNightCommitted ? (
+                    <p className="shrink-0 mb-1 text-sm text-muted">
+                      Choose <span className="font-medium text-text">Check</span> to investigate. You learn their role
+                      at dawn, not immediately. Or use <span className="font-medium text-rose-300">Kill</span> to try to
+                      eliminate them at night (Doctor can still protect). You get{' '}
+                      <span className="font-medium text-text">one</span> action per night (check or kill).
+                    </p>
+                  ) : null}
                   {!playerId ? (
                     <p className="text-sm text-muted">Connecting to the room…</p>
                   ) : (
                     <>
-                      <div className={[playerListScrollClass, 'min-h-0 flex-1'].join(' ')}>
-                        <div className="space-y-2">
-                        {alivePlayers
-                          .filter((p) => p.id !== playerId)
-                          .map((p) => (
-                            <div
-                              key={p.id}
-                              className="flex flex-col gap-2 rounded-xl border border-border bg-base p-3 sm:flex-row sm:items-center sm:justify-between"
-                            >
-                              <div className="flex min-w-0 items-center gap-3">
-                                <Avatar name={p.displayName} size="sm" />
-                                <span className="truncate text-sm font-semibold text-text">{p.displayName}</span>
-                              </div>
-                              <div className="flex w-full shrink-0 gap-2 sm:w-auto">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="min-w-0 flex-1 sm:flex-initial"
-                                  disabled={detectiveNightCommitted}
-                                  onClick={() => detectiveProbe(p.id)}
-                                >
-                                  Check
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="min-w-0 flex-1 text-rose-300 hover:text-rose-200 sm:flex-initial"
-                                  disabled={detectiveNightCommitted}
-                                  onClick={() => detectiveKill(p.id)}
-                                >
-                                  Kill
-                                </Button>
-                              </div>
+                      {detectiveNightCommitted ? (
+                        <div className="flex min-h-0 flex-1 flex-col gap-3">
+                          <div className="rounded-2xl border border-sky-400/35 bg-sky-950/30 px-4 py-4 text-sm">
+                            <div className="text-xs font-semibold uppercase tracking-wider text-sky-200/90">
+                              Your night action
                             </div>
-                          ))}
-                        {status === 'night' && detectiveCheckTargetId && (
-                          <div className="rounded-xl border border-sky-400/30 bg-sky-400/10 px-3 py-2 text-sm">
-                            <span className="font-semibold text-sky-200">Investigation pending.</span>{' '}
-                            Checking{' '}
-                            <span className="font-semibold text-text">
-                              {nameById.get(detectiveCheckTargetId) ?? 'player'}
-                            </span>
-                            . You&apos;ll learn their role at dawn.
+                            {detectiveCheckTargetId ? (
+                              <p className="mt-2 text-text">
+                                <span className="font-semibold text-sky-200">Check</span> on{' '}
+                                <span className="font-semibold text-text">
+                                  {nameById.get(detectiveCheckTargetId) ?? 'player'}
+                                </span>
+                                . You&apos;ll learn their role at dawn.
+                              </p>
+                            ) : detectiveKillTargetId ? (
+                              <p className="mt-2 text-text">
+                                <span className="font-semibold text-rose-300">Kill</span> on{' '}
+                                <span className="font-semibold text-text">
+                                  {nameById.get(detectiveKillTargetId) ?? 'player'}
+                                </span>
+                                . Resolves if the night completes (Doctor may save).
+                              </p>
+                            ) : (
+                              <p className="mt-2 font-medium text-sky-300">Night action locked in for this night.</p>
+                            )}
                           </div>
-                        )}
                         </div>
-                      </div>
+                      ) : (
+                        <div className={[playerListScrollClass, 'min-h-0 flex-1'].join(' ')}>
+                          <div className="space-y-2">
+                            {alivePlayers
+                              .filter((p) => p.id !== playerId)
+                              .map((p) => (
+                                <div
+                                  key={p.id}
+                                  className="flex flex-col gap-2 rounded-xl border border-border bg-base p-3 sm:flex-row sm:items-center sm:justify-between"
+                                >
+                                  <div className="flex min-w-0 items-center gap-3">
+                                    <Avatar name={p.displayName} size="sm" />
+                                    <span className="truncate text-sm font-semibold text-text">{p.displayName}</span>
+                                  </div>
+                                  <div className="flex w-full shrink-0 gap-2 sm:w-auto">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="min-w-0 flex-1 sm:flex-initial"
+                                      disabled={detectiveNightCommitted}
+                                      onClick={() => detectiveProbe(p.id)}
+                                    >
+                                      Check
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="min-w-0 flex-1 text-rose-300 hover:text-rose-200 sm:flex-initial"
+                                      disabled={detectiveNightCommitted}
+                                      onClick={() => detectiveKill(p.id)}
+                                    >
+                                      Kill
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
                       <div className="mt-auto shrink-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface/95 px-3 py-2.5 shadow-[0_-8px_24px_-6px_rgba(0,0,0,0.4)] backdrop-blur-sm">
                         <div className="min-w-0 text-sm text-muted">
                           Skip night:{' '}
@@ -1159,12 +1207,7 @@ export default function MafiaGame() {
 
         <div className="hidden w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface lg:flex lg:max-h-full lg:min-h-0 lg:w-[380px] lg:shrink-0">
           <div className="shrink-0 border-b border-border px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted">
-            Chat{' '}
-            {chatLockedAtNight
-              ? '(closed at night)'
-              : status === 'night' && role?.role === 'detective'
-                ? '(you can chat while choosing your action)'
-                : ''}
+            Chat {chatLockedAtNight ? '(closed at night)' : ''}
           </div>
           <div
             ref={mafiaDesktopChatRef}
@@ -1179,11 +1222,17 @@ export default function MafiaGame() {
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder={chatLockedAtNight ? 'Chat closed at night' : 'Message the room…'}
                 disabled={
-                  chatLockedAtNight || (playerId != null && aliveSet[playerId] === false)
+                  isSpectator ||
+                  chatLockedAtNight ||
+                  (playerId != null && aliveSet[playerId] === false)
                 }
                 className="min-w-0 flex-1 rounded-xl border border-border bg-base px-3 py-2.5 text-sm text-text placeholder:text-muted outline-none focus:border-accent/60 disabled:opacity-50"
               />
-              <Button type="submit" variant="teal" disabled={chatLockedAtNight || !chatInput.trim()}>
+              <Button
+                type="submit"
+                variant="teal"
+                disabled={isSpectator || chatLockedAtNight || !chatInput.trim()}
+              >
                 Send
               </Button>
             </div>
@@ -1300,7 +1349,7 @@ export default function MafiaGame() {
         </div>
       </div>
 
-      <MobileChatFloatingToasts messages={messages} expanded={mobileChatOpen} theme="shell" />
+      <MobileChatFloatingToasts messages={messages} expanded={mobileChatOpen} enabled={!isSpectator} theme="shell" />
 
       <MobileChatDock
         title="Chat"
@@ -1320,27 +1369,33 @@ export default function MafiaGame() {
         }
         messages={<div className="space-y-2">{mafiaChatMessageList}</div>}
         composer={
-          <form className="flex w-full gap-2" onSubmit={sendChat}>
-            <input
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              placeholder={chatLockedAtNight ? 'Chat closed at night' : 'Message the room…'}
-              disabled={
-                chatLockedAtNight || (playerId != null && aliveSet[playerId] === false)
-              }
-              className="min-w-0 flex-1 rounded-xl border border-border bg-base px-3 py-2.5 text-sm text-text placeholder:text-muted outline-none focus:border-accent/60 disabled:opacity-50"
-              autoComplete="off"
-            />
-            <Button
-              type="submit"
-              variant="teal"
-              size="md"
-              className="shrink-0 px-3"
-              disabled={chatLockedAtNight || !chatInput.trim()}
-            >
-              <Send size={16} />
-            </Button>
-          </form>
+          isSpectator ? (
+            <div className="rounded-xl border border-border bg-base px-2 py-2 text-center text-[10px] leading-snug text-muted">
+              Spectating — chat unlocks when the next match starts.
+            </div>
+          ) : (
+            <form className="flex w-full gap-2" onSubmit={sendChat}>
+              <input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder={chatLockedAtNight ? 'Chat closed at night' : 'Message the room…'}
+                disabled={
+                  chatLockedAtNight || (playerId != null && aliveSet[playerId] === false)
+                }
+                className="min-w-0 flex-1 rounded-xl border border-border bg-base px-3 py-2.5 text-sm text-text placeholder:text-muted outline-none focus:border-accent/60 disabled:opacity-50"
+                autoComplete="off"
+              />
+              <Button
+                type="submit"
+                variant="teal"
+                size="md"
+                className="shrink-0 px-3"
+                disabled={isSpectator || chatLockedAtNight || !chatInput.trim()}
+              >
+                <Send size={16} />
+              </Button>
+            </form>
+          )
         }
       />
 

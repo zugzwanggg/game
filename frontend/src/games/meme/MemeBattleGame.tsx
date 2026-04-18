@@ -1,6 +1,7 @@
 import { ArrowLeft, Check, Crown, Search, ThumbsUp } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { RoomPresenceBanner } from '../../components/ui/RoomPresenceBanner'
+import { SpectatorBanner } from '../../components/ui/SpectatorBanner'
 import { useRoomPresenceNotification } from '../../hooks/useRoomPresenceNotification'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import Avatar from '../../components/ui/Avatar'
@@ -48,7 +49,7 @@ export default function MemeBattleGame() {
   const isOnline = Boolean(roomCode)
 
   const [playerId, setPlayerId] = useState<string | null>(null)
-  const [players, setPlayers] = useState<{ id: string; displayName: string }[]>([])
+  const [players, setPlayers] = useState<{ id: string; displayName: string; spectator?: boolean }[]>([])
   const [createdByUserId, setCreatedByUserId] = useState<string | null>(null)
   const [meme, setMeme] = useState<MemeGameWire | null>(null)
   const [timers, setTimers] = useState<TimersWire>({})
@@ -65,6 +66,10 @@ export default function MemeBattleGame() {
   const [autoReveal, setAutoReveal] = useState(true)
 
   const minPlayersMet = players.length >= 2
+
+  const isSpectator = Boolean(
+    playerId && players.some((p) => p.id === playerId && p.spectator),
+  )
   /** Leave the match lobby entirely; do not open `/room/...` or we re-join and bounce back into play. */
   const backTarget = '/games/meme'
 
@@ -89,9 +94,10 @@ export default function MemeBattleGame() {
         const next = (state.players as any[]).map((p) => ({
           id: String(p.id),
           displayName: String(p.displayName ?? 'Player'),
+          spectator: Boolean(p.spectator),
         }))
         setPlayers(next)
-        handlePlayersSnapshot(next)
+        handlePlayersSnapshot(next.map(({ id, displayName }) => ({ id, displayName })))
       }
       if (typeof state?.createdByUserId === 'string') setCreatedByUserId(state.createdByUserId)
       setMeme(state.memeGame ?? null)
@@ -177,11 +183,13 @@ export default function MemeBattleGame() {
   }
 
   const castContextVote = (promptIndex: 0 | 1) => {
+    if (isSpectator) return
     if (!roomCode) return
     getSocket().emit('game:meme:context_vote', { promptIndex })
   }
 
   const submitGif = () => {
+    if (isSpectator) return
     if (!roomCode || !pickedGif) return
     playMemeSubmitSfx()
     getSocket().emit('game:meme:submit_gif', { gif: pickedGif })
@@ -189,6 +197,7 @@ export default function MemeBattleGame() {
   }
 
   const castGifVote = (targetPlayerId: string) => {
+    if (isSpectator) return
     if (!roomCode || !playerId || targetPlayerId === playerId) return
     playMemeVoteSfx()
     getSocket().emit('game:meme:gif_vote', { targetPlayerId })
@@ -254,6 +263,11 @@ export default function MemeBattleGame() {
         kind={presencePayload?.kind ?? null}
         onDismiss={dismissPresence}
       />
+      {isSpectator ? (
+        <div className="mb-4">
+          <SpectatorBanner />
+        </div>
+      ) : null}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <Link
@@ -372,6 +386,7 @@ export default function MemeBattleGame() {
                         <button
                           key={i}
                           type="button"
+                          disabled={isSpectator}
                           onClick={() => castContextVote(i)}
                           className={[
                             'rounded-2xl border p-5 text-left transition-all',
@@ -520,7 +535,7 @@ export default function MemeBattleGame() {
                 <Button
                   type="button"
                   variant="teal"
-                  disabled={!pickedGif || Boolean(mySubmission)}
+                  disabled={!pickedGif || Boolean(mySubmission) || isSpectator}
                   onClick={submitGif}
                 >
                   {mySubmission ? 'Submitted' : 'Submit GIF'}
@@ -634,7 +649,7 @@ export default function MemeBattleGame() {
                               type="button"
                               variant="ghost"
                               size="sm"
-                              disabled={!playerId || cantVoteSelf}
+                              disabled={!playerId || cantVoteSelf || isSpectator}
                               onClick={() => castGifVote(p.id)}
                               className={votedFor ? 'text-teal' : ''}
                               title={cantVoteSelf ? undefined : 'Vote for this GIF'}

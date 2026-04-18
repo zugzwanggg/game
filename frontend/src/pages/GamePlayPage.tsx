@@ -1,4 +1,5 @@
-import { Navigate, useParams } from 'react-router-dom'
+import { Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { useRoomMatchAbandoned } from '../hooks/useRoomMatchAbandoned'
 import GuessDrawingGame from '../games/drawing/GuessDrawingGame'
 import MemeBattleGame from '../games/meme/MemeBattleGame'
 import SpyGame from '../games/spy/SpyGame'
@@ -7,6 +8,8 @@ import LiarsRevolverGame from '../games/liar/LiarsRevolverGame'
 
 export default function GamePlayPage() {
   const { gameId } = useParams()
+  const [searchParams] = useSearchParams()
+  useRoomMatchAbandoned(searchParams.get('room'), gameId)
 
   if (gameId === 'drawing') {
     return (

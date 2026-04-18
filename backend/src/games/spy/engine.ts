@@ -26,7 +26,7 @@ function resetToLobby(s: NonNullable<RoomState['spyGame']>) {
 }
 
 function livePlayerIds(room: RoomState) {
-  return room.players.map((p) => p.id)
+  return room.players.filter((p) => !p.spectator).map((p) => p.id)
 }
 
 function startVoting(room: RoomState, s: NonNullable<RoomState['spyGame']>, t: number) {
@@ -89,6 +89,10 @@ export function startSpyMatch(room: RoomState, t: number) {
   if (!s || room.game !== 'spy') return
   if (room.players.length < SPY_MIN_PLAYERS) return
   if (room.players.length > SPY_MAX_PLAYERS) return
+
+  for (const p of room.players) {
+    p.spectator = false
+  }
 
   s.matchId += 1
   s.status = 'discussion'

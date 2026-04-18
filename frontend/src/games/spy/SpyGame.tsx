@@ -9,6 +9,7 @@ import Avatar from '../../components/ui/Avatar'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import { RoomPresenceBanner } from '../../components/ui/RoomPresenceBanner'
+import { SpectatorBanner } from '../../components/ui/SpectatorBanner'
 import { RoomVoiceDock } from '../../components/voice/RoomVoiceDock'
 import { useRoomPresenceNotification } from '../../hooks/useRoomPresenceNotification'
 import { removeRecentRoom } from '../../lib/recentRooms'
@@ -26,7 +27,7 @@ function uid() {
   }
 }
 
-type SpyRole = { role: 'spy' } | { role: 'agent'; word: string }
+type SpyRole = { role: 'spy' } | { role: 'agent'; word: string } | { role: 'spectator' }
 
 type ChatMessage = {
   id: string
@@ -77,7 +78,7 @@ export default function SpyGame() {
   const isOnline = Boolean(roomCode)
 
   const [playerId, setPlayerId] = useState<string | null>(null)
-  const [players, setPlayers] = useState<{ id: string; displayName: string }[]>([])
+  const [players, setPlayers] = useState<{ id: string; displayName: string; spectator?: boolean }[]>([])
   const [createdByUserId, setCreatedByUserId] = useState<string | null>(null)
   const [spy, setSpy] = useState<SpyGameWire | null>(null)
   const [timers, setTimers] = useState<TimersWire>({})
@@ -104,6 +105,10 @@ export default function SpyGame() {
   const guessSec = timers.spyGuessSecLeft ?? 0
   const voteNudgeActive = voteNudgeUntil > Date.now()
 
+  const isSpectator = Boolean(
+    playerId && players.some((p) => p.id === playerId && p.spectator),
+  )
+
   useEffect(() => {
     if (!isOnline || !roomCode) return
     const socket = getSocket()
@@ -119,12 +124,15 @@ export default function SpyGame() {
         const next = (state.players as any[]).map((p) => ({
           id: String(p.id),
           displayName: String(p.displayName ?? 'Player'),
+          spectator: Boolean(p.spectator),
         }))
         setPlayers(next)
-        handlePlayersSnapshot(next)
+        handlePlayersSnapshot(next.map(({ id, displayName }) => ({ id, displayName })))
       }
       if (typeof state?.createdByUserId === 'string') setCreatedByUserId(state.createdByUserId)
-      setSpy((state.spyGame ?? null) as SpyGameWire | null)
+      const nextSpy = (state.spyGame ?? null) as SpyGameWire | null
+      setSpy(nextSpy)
+      if (!nextSpy || nextSpy.status === 'lobby') setRole(null)
       setTimers((state.timers ?? {}) as TimersWire)
       if (Array.isArray(state?.chat)) {
         setMessages(
@@ -139,6 +147,10 @@ export default function SpyGame() {
     }
 
     const onRole = (p: any) => {
+      if (p?.role === 'spectator') {
+        setRole({ role: 'spectator' })
+        return
+      }
       const r = p?.role === 'spy' ? ({ role: 'spy' } as const) : ({ role: 'agent', word: String(p?.word ?? '') } as const)
       setRole(r)
     }
@@ -211,6 +223,7 @@ export default function SpyGame() {
   }
 
   const requestVote = () => {
+    if (isSpectator) return
     if (!roomCode) return
     playSpyCallVoteSfx()
     setVoteNudgeUntil(Date.now() + 1200)
@@ -218,6 +231,7 @@ export default function SpyGame() {
   }
 
   const castVote = (targetPlayerId: string) => {
+    if (isSpectator) return
     if (!roomCode || !playerId) return
     if (targetPlayerId === playerId) return
     setMyVote(targetPlayerId)
@@ -225,6 +239,7 @@ export default function SpyGame() {
   }
 
   const submitSpyGuess = () => {
+    if (isSpectator) return
     if (!roomCode || role?.role !== 'spy') return
     const guess = spyGuessText.trim()
     if (!guess) return
@@ -233,6 +248,7 @@ export default function SpyGame() {
 
   const sendChat = (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSpectator) return
     if (!roomCode) return
     const text = chatInput.trim()
     if (!text) return
@@ -289,6 +305,12 @@ export default function SpyGame() {
         kind={presencePayload?.kind ?? null}
         onDismiss={dismissPresence}
       />
+
+      {isSpectator ? (
+        <div className="mb-4">
+          <SpectatorBanner />
+        </div>
+      ) : null}
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
@@ -379,12 +401,106 @@ export default function SpyGame() {
         ))}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row lg:min-h-0">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row lg:min-h-0 lg:items-stretch">
+        <div
+          className={[
+            'min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-border bg-surface p-4',
+            mobileTab === 'players' ? 'flex' : 'hidden',
+            'lg:order-3 lg:flex lg:w-72 lg:flex-none lg:shrink-0',
+          ].join(' ')}
+        >
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Players</div>
+          <div className="space-y-2">
+            {players.map((p) => (
+              <div key={p.id} className="rounded-xl border border-border bg-base px-3 py-2">
+                <div className="flex items-center gap-3">
+                  <Avatar name={p.displayName} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-text">{p.displayName}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      {createdByUserId && p.id === createdByUserId && <Badge color="accent">host</Badge>}
+                      {playerId && p.id === playerId && <Badge color="muted">you</Badge>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {!minPlayersMet && (
+            <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
+              Need 3-10 players to play Spy.
+            </div>
+          )}
+
+          <div className="mt-4">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full justify-center"
+              onClick={() => {
+                leaveRoomSocket()
+                void navigate(backTarget)
+              }}
+            >
+              Quit room
+            </Button>
+          </div>
+        </div>
+
+        <div className="hidden min-h-0 w-full flex-col lg:order-2 lg:flex lg:w-90 lg:flex-none lg:shrink-0">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card lg:max-h-full">
+            <div className="shrink-0 border-b border-border px-4 py-3">
+              <h2 className="text-sm font-semibold text-text">Chat</h2>
+              <p className="text-xs text-muted">Talk freely. Don’t say the word directly.</p>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div
+                ref={spyDesktopChatRef}
+                className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-3 [scrollbar-gutter:stable]"
+              >
+                {messages.length ? (
+                  messages.map((m) => (
+                    <div
+                      key={m.id}
+                      className={`rounded-lg px-3 py-2 text-sm ${
+                        m.variant === 'system'
+                          ? 'border border-border/60 bg-surface/80 text-muted'
+                          : 'bg-surface text-text'
+                      }`}
+                    >
+                      <span className="text-xs font-semibold text-muted">{m.author}</span>
+                      <p className="mt-0.5 wrap-break-word">{m.text}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-6 text-center text-sm text-muted">No messages yet.</div>
+                )}
+              </div>
+              <form onSubmit={sendChat} className="shrink-0 border-t border-border p-3">
+                <div className="flex gap-2">
+                  <input
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Type a message…"
+                    disabled={isSpectator}
+                    className="min-w-0 flex-1 rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none placeholder:text-muted focus:border-accent/60 disabled:opacity-50"
+                    autoComplete="off"
+                  />
+                  <Button type="submit" variant="primary" size="md" className="shrink-0 px-4" disabled={isSpectator}>
+                    Send
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
         <div
           className={[
             'min-h-0 flex-1 flex-col rounded-2xl border border-border bg-surface p-4',
             mobileTab === 'round' ? 'flex' : 'hidden',
-            'lg:flex',
+            'lg:order-1 lg:flex lg:min-w-0',
           ].join(' ')}
         >
           {status === 'lobby' && (
@@ -413,7 +529,9 @@ export default function SpyGame() {
           {status !== 'lobby' && (
             <div className="mb-4 rounded-2xl border border-border bg-base p-4">
               <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">Your role</div>
-              {role?.role === 'spy' ? (
+              {role?.role === 'spectator' || isSpectator ? (
+                <div className="text-lg font-semibold text-text">Spectator — watch only until the next match.</div>
+              ) : role?.role === 'spy' ? (
                 <div className="text-lg font-semibold text-text">You are the Spy.</div>
               ) : role?.role === 'agent' ? (
                 <div className="text-lg font-semibold text-text">
@@ -456,7 +574,7 @@ export default function SpyGame() {
                   type="button"
                   variant="ghost"
                   onClick={requestVote}
-                  disabled={!playerId}
+                  disabled={!playerId || isSpectator}
                   className={voteNudgeActive ? 'animate-pulse' : ''}
                 >
                   Call vote
@@ -593,108 +711,9 @@ export default function SpyGame() {
             </div>
           )}
         </div>
-
-        <div
-          className={[
-            'flex w-full flex-col gap-4 overflow-hidden lg:w-90 lg:flex-none',
-            mobileTab === 'round' ? 'hidden' : 'flex',
-            'lg:flex',
-          ].join(' ')}
-        >
-          <div className="hidden min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card lg:flex lg:max-h-full">
-            <div className="shrink-0 border-b border-border px-4 py-3">
-              <h2 className="text-sm font-semibold text-text">Chat</h2>
-              <p className="text-xs text-muted">Talk freely. Don’t say the word directly.</p>
-            </div>
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <div
-                ref={spyDesktopChatRef}
-                className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-3 [scrollbar-gutter:stable]"
-              >
-                {messages.length ? (
-                  messages.map((m) => (
-                    <div
-                      key={m.id}
-                      className={`rounded-lg px-3 py-2 text-sm ${
-                        m.variant === 'system'
-                          ? 'border border-border/60 bg-surface/80 text-muted'
-                          : 'bg-surface text-text'
-                      }`}
-                    >
-                      <span className="text-xs font-semibold text-muted">{m.author}</span>
-                      <p className="mt-0.5 wrap-break-word">{m.text}</p>
-                    </div>
-                  ))
-                ) : (
-                  <div className="py-6 text-center text-sm text-muted">No messages yet.</div>
-                )}
-              </div>
-              <form onSubmit={sendChat} className="shrink-0 border-t border-border p-3">
-                <div className="flex gap-2">
-                  <input
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="Type a message…"
-                    className="min-w-0 flex-1 rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none placeholder:text-muted focus:border-accent/60"
-                    autoComplete="off"
-                  />
-                  <Button type="submit" variant="primary" size="md" className="shrink-0 px-4">
-                    Send
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
-
-          <div
-            className={[
-              'w-full rounded-2xl border border-border bg-surface p-4',
-              mobileTab === 'players' ? 'block' : 'hidden',
-              'lg:block',
-            ].join(' ')}
-          >
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Players</div>
-            <div className="space-y-2">
-              {players.map((p) => (
-                <div key={p.id} className="rounded-xl border border-border bg-base px-3 py-2">
-                  <div className="flex items-center gap-3">
-                    <Avatar name={p.displayName} size="sm" />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold text-text">{p.displayName}</div>
-                      <div className="mt-1 flex flex-wrap items-center gap-1">
-                        {createdByUserId && p.id === createdByUserId && <Badge color="accent">host</Badge>}
-                        {playerId && p.id === playerId && <Badge color="muted">you</Badge>}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {!minPlayersMet && (
-              <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
-                Need 3-10 players to play Spy.
-              </div>
-            )}
-
-            <div className="mt-4">
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full justify-center"
-                onClick={() => {
-                  leaveRoomSocket()
-                  void navigate(backTarget)
-                }}
-              >
-                Quit room
-              </Button>
-            </div>
-          </div>
-        </div>
       </div>
 
-      <MobileChatFloatingToasts messages={messages} expanded={mobileChatOpen} theme="shell" />
+      <MobileChatFloatingToasts messages={messages} expanded={mobileChatOpen} enabled={!isSpectator} theme="shell" />
 
       <MobileChatDock
         title="Chat"
@@ -713,18 +732,24 @@ export default function SpyGame() {
         }
         messages={<div className="space-y-2">{spyChatMessageList}</div>}
         composer={
-          <form className="flex w-full gap-2" onSubmit={sendChat}>
-            <input
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Type a message…"
-              className="min-w-0 flex-1 rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none placeholder:text-muted focus:border-accent/60"
-              autoComplete="off"
-            />
-            <Button type="submit" variant="primary" size="md" className="shrink-0 px-3">
-              <Send size={16} />
-            </Button>
-          </form>
+          isSpectator ? (
+            <div className="rounded-xl border border-border bg-base px-2 py-2 text-center text-[10px] leading-snug text-muted">
+              Spectating — chat unlocks when the next match starts.
+            </div>
+          ) : (
+            <form className="flex w-full gap-2" onSubmit={sendChat}>
+              <input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Type a message…"
+                className="min-w-0 flex-1 rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none placeholder:text-muted focus:border-accent/60"
+                autoComplete="off"
+              />
+              <Button type="submit" variant="primary" size="md" className="shrink-0 px-3">
+                <Send size={16} />
+              </Button>
+            </form>
+          )
         }
       />
     </div>

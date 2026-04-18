@@ -14,6 +14,7 @@ import { getSocket } from '../lib/socket'
 import { RoomPresenceBanner } from '../components/ui/RoomPresenceBanner'
 import { RoomVoiceDock } from '../components/voice/RoomVoiceDock'
 import { useRoomPresenceNotification } from '../hooks/useRoomPresenceNotification'
+import { useRoomMatchAbandoned } from '../hooks/useRoomMatchAbandoned'
 import { joinRoom } from '../lib/roomJoin'
 
 function buildInviteUrl(code: string) {
@@ -27,6 +28,7 @@ export default function RoomPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const gameId = searchParams.get('game') ?? undefined
+  useRoomMatchAbandoned(roomCode ?? null, gameId)
   const game = getGame(gameId)
   const { principal, guest, ready } = useAuth()
 

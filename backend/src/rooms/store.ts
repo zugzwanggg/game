@@ -11,6 +11,7 @@ function resetDrawingLobby(g: NonNullable<RoomState['drawingGame']>, room: RoomS
   g.matchRound = 1
   g.turnIndex = 0
   g.order = []
+  g.matchRosterIds = []
   g.drawerPlayerId = null
   g.word = null
   g.wordHint = null
@@ -45,20 +46,95 @@ function pruneMemeGameState(room: RoomState) {
   }
 }
 
+function drawingRoster(g: NonNullable<RoomState['drawingGame']>): string[] {
+  return g.matchRosterIds.length > 0 ? g.matchRosterIds : g.order
+}
+
+/** First online player at or after `startIndex` (wrapping). */
+function nextOnlineInRoster(
+  roster: string[],
+  startIndex: number,
+  liveIds: Set<string>,
+): { id: string; idx: number } | null {
+  const n = roster.length
+  if (!n) return null
+  const s = ((startIndex % n) + n) % n
+  for (let off = 0; off < n; off++) {
+    const idx = (s + off) % n
+    const id = roster[idx]!
+    if (liveIds.has(id)) return { id, idx }
+  }
+  return null
+}
+
 function repairDrawingGame(room: RoomState, t: number, liveIds: Set<string>) {
   const g = room.drawingGame
   if (!g || g.status === 'lobby') return
+
+  const roster = drawingRoster(g)
+  const useRoster = g.matchRosterIds.length > 0
 
   if (g.status === 'leaderboard') {
     for (const k of Object.keys(g.scores)) {
       if (!liveIds.has(k)) delete g.scores[k]
     }
-    g.order = g.order.filter((id) => liveIds.has(id))
+    if (useRoster) {
+      g.order = [...roster]
+    } else {
+      g.order = g.order.filter((id) => liveIds.has(id))
+    }
     return
   }
 
   if (room.players.length < 2) {
     resetDrawingLobby(g, room)
+    return
+  }
+
+  if (useRoster) {
+    g.order = [...roster]
+    for (const k of Object.keys(g.scores)) {
+      if (!roster.includes(k)) delete g.scores[k]
+    }
+    const onlineInRoster = roster.filter((id) => liveIds.has(id)).length
+    if (onlineInRoster < 2) {
+      resetDrawingLobby(g, room)
+      return
+    }
+
+    const drawerValid =
+      Boolean(g.drawerPlayerId) &&
+      liveIds.has(g.drawerPlayerId!) &&
+      roster.includes(g.drawerPlayerId!)
+
+    if (drawerValid) {
+      g.turnIndex = roster.indexOf(g.drawerPlayerId!)
+      return
+    }
+
+    const oldIdx = g.drawerPlayerId ? roster.indexOf(g.drawerPlayerId) : -1
+    const from =
+      oldIdx >= 0 ? (oldIdx + 1) % roster.length : ((g.turnIndex % roster.length) + roster.length) % roster.length
+    const picked = nextOnlineInRoster(roster, from, liveIds)
+    if (!picked) {
+      resetDrawingLobby(g, room)
+      return
+    }
+    g.drawerPlayerId = picked.id
+    g.turnIndex = picked.idx
+
+    if (g.status === 'playing') {
+      const w = pickRandomWord()
+      g.word = w
+      g.wordHint = toHint(w)
+      g.endsAt = t + DRAW_SEC * 1000
+      g.revealEndsAt = null
+      g.solvedByPlayerId = null
+      room.drawing.strokes = []
+      room.chat = []
+    } else if (g.status === 'reveal') {
+      g.revealEndsAt = t
+    }
     return
   }
 
@@ -201,6 +277,7 @@ export function createRoom(args: {
             matchRound: 1,
             turnIndex: 0,
             order: [],
+            matchRosterIds: [],
             drawerPlayerId: null,
             word: null,
             wordHint: null,
@@ -377,20 +454,7 @@ export function tickRoomTimers(code: string) {
     const g = room.drawingGame
     // Player requirement: if not enough players remain, stop the match.
     if (room.players.length < 2) {
-      g.status = 'lobby'
-      g.matchRound = 1
-      g.turnIndex = 0
-      g.order = []
-      g.drawerPlayerId = null
-      g.word = null
-      g.wordHint = null
-      g.endsAt = null
-      g.revealEndsAt = null
-      g.leaderboardEndsAt = null
-      g.solvedByPlayerId = null
-      g.scores = {}
-      room.drawing.strokes = []
-      room.chat = []
+      resetDrawingLobby(g, room)
       return
     }
     if (g.status === 'playing' && g.endsAt && t >= g.endsAt) {
@@ -401,20 +465,61 @@ export function tickRoomTimers(code: string) {
     }
 
     if (g.status === 'reveal' && g.revealEndsAt && t >= g.revealEndsAt) {
-      // Advance turn (each player draws once in order), then advance match round.
-      const liveOrder = g.order.filter((id) => room.players.some((p) => p.id === id))
-      g.order = liveOrder
-      if (g.order.length === 0) {
-        g.status = 'lobby'
-        g.drawerPlayerId = null
-        g.word = null
-        g.wordHint = null
-        g.endsAt = null
+      const liveSet = new Set(room.players.map((p) => p.id))
+
+      if (g.matchRosterIds.length > 0) {
+        const roster = drawingRoster(g)
+        if (!roster.length) {
+          resetDrawingLobby(g, room)
+          return
+        }
+
+        g.turnIndex += 1
+        if (g.turnIndex >= roster.length) {
+          g.matchRound += 1
+          g.turnIndex = 0
+        }
+
+        if (g.matchRound > MAX_MATCH_ROUNDS) {
+          g.status = 'leaderboard'
+          g.leaderboardEndsAt = t + LEADERBOARD_SEC * 1000
+          g.drawerPlayerId = null
+          g.word = null
+          g.wordHint = null
+          g.endsAt = null
+          g.revealEndsAt = null
+          g.solvedByPlayerId = null
+          room.drawing.strokes = []
+          room.chat = []
+          g.order = [...g.matchRosterIds]
+          return
+        }
+
+        const picked = nextOnlineInRoster(roster, g.turnIndex, liveSet)
+        if (!picked) {
+          resetDrawingLobby(g, room)
+          return
+        }
+        g.turnIndex = picked.idx
+        g.order = [...g.matchRosterIds]
+        g.status = 'playing'
+        g.drawerPlayerId = picked.id
+        const nextWord = pickRandomWord()
+        g.word = nextWord
+        g.wordHint = toHint(nextWord)
+        g.endsAt = t + DRAW_SEC * 1000
         g.revealEndsAt = null
-        g.leaderboardEndsAt = null
         g.solvedByPlayerId = null
         room.drawing.strokes = []
         room.chat = []
+        return
+      }
+
+      // Legacy (no match roster): advance using only connected players in order.
+      const liveOrder = g.order.filter((id) => room.players.some((p) => p.id === id))
+      g.order = liveOrder
+      if (g.order.length === 0) {
+        resetDrawingLobby(g, room)
         return
       }
 
@@ -456,20 +561,7 @@ export function tickRoomTimers(code: string) {
       // Auto-restart a fresh match (round 1) if enough players.
       const players = [...room.players].sort((a, b) => a.joinedAt - b.joinedAt)
       if (players.length < 2) {
-        g.status = 'lobby'
-        g.matchRound = 1
-        g.turnIndex = 0
-        g.order = []
-        g.drawerPlayerId = null
-        g.word = null
-        g.wordHint = null
-        g.endsAt = null
-        g.revealEndsAt = null
-        g.leaderboardEndsAt = null
-        g.solvedByPlayerId = null
-        g.scores = {}
-        room.drawing.strokes = []
-        room.chat = []
+        resetDrawingLobby(g, room)
         return
       }
 
@@ -478,7 +570,11 @@ export function tickRoomTimers(code: string) {
       g.matchRound = 1
       g.turnIndex = 0
       g.order = players.map((p) => p.id)
+      g.matchRosterIds = [...g.order]
       g.scores = {}
+      for (const p of room.players) {
+        p.spectator = false
+      }
       g.drawerPlayerId = g.order[0]!
       const w = pickRandomWord()
       g.word = w

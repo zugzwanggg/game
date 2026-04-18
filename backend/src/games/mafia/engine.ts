@@ -64,6 +64,10 @@ export function startMafiaMatch(room: RoomState, t: number) {
   }
   if (g.status !== 'lobby') return
 
+  for (const p of room.players) {
+    p.spectator = false
+  }
+
   const ids = room.players.map((p) => p.id)
   g.matchId += 1
   g.round = 1

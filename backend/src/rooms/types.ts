@@ -9,6 +9,8 @@ export type RoomPlayer = {
   kind: 'user' | 'guest'
   displayName: string
   joinedAt: number
+  /** Joined while a match was already running; cannot act until the room is in lobby or a new match starts. */
+  spectator?: boolean
 }
 
 export type DrawingStroke = {
@@ -158,6 +160,8 @@ export type RoomState = {
     turnIndex: number
     /** Fixed draw order for this match. */
     order: string[]
+    /** Player ids in this match (set at match start). Used so reconnecting players rejoin as participants, not spectators. */
+    matchRosterIds: string[]
     drawerPlayerId: string | null
     word: string | null
     wordHint: string | null

@@ -120,6 +120,10 @@ export function startLiarMatch(room: RoomState, now: number) {
   const players = [...room.players].sort((a, b) => a.joinedAt - b.joinedAt)
   if (players.length < LIAR_MIN_PLAYERS || players.length > LIAR_MAX_PLAYERS) return
 
+  for (const p of room.players) {
+    p.spectator = false
+  }
+
   g.matchId += 1
   g.status = 'playing'
   g.phase = 'between_rounds'

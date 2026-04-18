@@ -13,6 +13,7 @@ import { MobileChatFloatingToasts } from '../../components/chat/MobileChatFloati
 import { MobileChatDock, MOBILE_CHAT_DOCK_PAD_CLASS } from '../../components/chat/MobileChatDock'
 import Button from '../../components/ui/Button'
 import { RoomPresenceBanner } from '../../components/ui/RoomPresenceBanner'
+import { SpectatorBanner } from '../../components/ui/SpectatorBanner'
 import { RoomVoiceDock } from '../../components/voice/RoomVoiceDock'
 import { chatListScrollKey, useChatScrollToBottom } from '../../hooks/useChatScrollToBottom'
 import { useMediaQueryLg } from '../../hooks/useMediaQueryLg'
@@ -222,7 +223,7 @@ export default function GuessDrawingGame() {
   const [brushWidth, setBrushWidth] = useState<number>(DEFAULT_BRUSH_WIDTH)
   const brushWidthRef = useRef(brushWidth)
 
-  const [role, setRole] = useState<Role>('drawer')
+  const [role, setRole] = useState<Role>(() => (isOnline ? 'guesser' : 'drawer'))
   const [strokes, setStrokes] = useState<Stroke[]>([])
   const [draftPoints, setDraftPoints] = useState<Point[]>([])
   const drawingRef = useRef(false)
@@ -236,6 +237,7 @@ export default function GuessDrawingGame() {
   ])
   const [guessInput, setGuessInput] = useState('')
   const [mobileGuessesOpen, setMobileGuessesOpen] = useState(false)
+  const [isSpectator, setIsSpectator] = useState(false)
   const [roundSolved, setRoundSolved] = useState(false)
   const [gamePhase, setGamePhase] = useState<GamePhase>('playing')
   const [activeRound, setActiveRound] = useState(1)
@@ -269,6 +271,23 @@ export default function GuessDrawingGame() {
 
     const onState = (state: any) => {
       if (String(state?.code ?? '').toUpperCase() !== roomCode.toUpperCase()) return
+      if (typeof state?.youPlayerId === 'string' && state.youPlayerId) {
+        setPlayerId(state.youPlayerId)
+      }
+      const selfId = String(state?.youPlayerId ?? playerId ?? '').trim()
+      let spectator = false
+      if (Array.isArray(state?.players)) {
+        const me = state.players.find((x: any) => String(x.id) === selfId)
+        spectator = Boolean(me?.spectator)
+        setIsSpectator(spectator)
+        setPlayerCount(state.players.length)
+        const vp = (state.players as { id: string; displayName?: string }[]).map((p) => ({
+          id: String(p.id),
+          displayName: String(p.displayName ?? 'Player'),
+        }))
+        setVoicePlayers(vp)
+        handlePlayersSnapshot(vp)
+      }
       const dg = state?.drawingGame
       if (dg) {
         setOnlineStatus(
@@ -286,20 +305,15 @@ export default function GuessDrawingGame() {
         setGamePhase(dg.status === 'leaderboard' ? 'leaderboard' : 'playing')
         if (typeof dg.matchRound === 'number') setActiveRound(dg.matchRound)
         if (dg.scores && typeof dg.scores === 'object') setScores(dg.scores as Record<string, number>)
-        if (dg.drawerPlayerId && playerId) {
-          setRole(dg.drawerPlayerId === playerId ? 'drawer' : 'guesser')
+        if (dg.status === 'lobby') {
+          setRole('guesser')
+        } else if (dg.drawerPlayerId) {
+          setRole(!selfId || spectator ? 'guesser' : dg.drawerPlayerId === selfId ? 'drawer' : 'guesser')
+        } else {
+          setRole('guesser')
         }
         // Keep a placeholder hint as "secretWord" in UI for non-drawer contexts.
         if (typeof dg.wordHint === 'string') setSecretWord(dg.wordHint)
-      }
-      if (Array.isArray(state?.players)) {
-        setPlayerCount(state.players.length)
-        const vp = (state.players as { id: string; displayName?: string }[]).map((p) => ({
-          id: String(p.id),
-          displayName: String(p.displayName ?? 'Player'),
-        }))
-        setVoicePlayers(vp)
-        handlePlayersSnapshot(vp)
       }
       if (state?.drawingGame?.solvedByPlayerId && Array.isArray(state?.players)) {
         const pid = String(state.drawingGame.solvedByPlayerId)
@@ -622,6 +636,7 @@ export default function GuessDrawingGame() {
     if (
       gamePhase !== 'playing' ||
       role !== 'drawer' ||
+      isSpectator ||
       roundSolved ||
       drawerTurnPhase !== 'drawing'
     )
@@ -636,6 +651,7 @@ export default function GuessDrawingGame() {
     if (
       gamePhase !== 'playing' ||
       role !== 'drawer' ||
+      isSpectator ||
       !drawingRef.current ||
       roundSolved ||
       drawerTurnPhase !== 'drawing'
@@ -648,6 +664,7 @@ export default function GuessDrawingGame() {
     if (
       gamePhase !== 'playing' ||
       role !== 'drawer' ||
+      isSpectator ||
       !drawingRef.current ||
       drawerTurnPhase !== 'drawing'
     )
@@ -671,6 +688,7 @@ export default function GuessDrawingGame() {
     if (
       gamePhase !== 'playing' ||
       role !== 'drawer' ||
+      isSpectator ||
       roundSolved ||
       drawerTurnPhase !== 'drawing'
     )
@@ -687,13 +705,14 @@ export default function GuessDrawingGame() {
       return
     }
     setStrokes((prev) => (prev.length ? prev.slice(0, -1) : prev))
-  }, [gamePhase, role, roundSolved, drawerTurnPhase, isOnline, roomCode])
+  }, [gamePhase, role, isSpectator, roundSolved, drawerTurnPhase, isOnline, roomCode])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (
         gamePhase !== 'playing' ||
         role !== 'drawer' ||
+        isSpectator ||
         roundSolved ||
         drawerTurnPhase !== 'drawing'
       )
@@ -707,7 +726,7 @@ export default function GuessDrawingGame() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [gamePhase, role, roundSolved, drawerTurnPhase, undoDrawing])
+  }, [gamePhase, role, isSpectator, roundSolved, drawerTurnPhase, undoDrawing])
 
   const guessesMessageList = useMemo(
     () =>
@@ -766,7 +785,7 @@ export default function GuessDrawingGame() {
   const sendGuess = (e: React.FormEvent) => {
     e.preventDefault()
     const text = guessInput.trim()
-    if (!text || role !== 'guesser' || gamePhase !== 'playing') return
+    if (!text || role !== 'guesser' || gamePhase !== 'playing' || isSpectator) return
 
     if (isOnline && roomCode) {
       const socket = getSocket()
@@ -827,6 +846,11 @@ export default function GuessDrawingGame() {
         kind={presencePayload?.kind ?? null}
         onDismiss={dismissPresence}
       />
+      {isOnline && isSpectator ? (
+        <div className="mb-4">
+          <SpectatorBanner className="border-zinc-200/90 bg-white/95 text-zinc-900 dark:border-zinc-600/60 dark:bg-zinc-900/90 dark:text-zinc-100" />
+        </div>
+      ) : null}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -921,6 +945,7 @@ export default function GuessDrawingGame() {
               )}
             </div>
             {role === 'drawer' &&
+              !isSpectator &&
               !roundSolved &&
               drawerTurnPhase === 'drawing' && (
               <div className="flex gap-2">
@@ -950,6 +975,7 @@ export default function GuessDrawingGame() {
           </div>
 
           {role === 'drawer' &&
+            !isSpectator &&
             !roundSolved &&
             drawerTurnPhase === 'drawing' && (
             <div className="mb-2 flex flex-col gap-2 rounded-xl border border-zinc-200/90 bg-white/95 p-2 shadow-sm sm:flex-row sm:flex-wrap sm:items-center">
@@ -1031,6 +1057,7 @@ export default function GuessDrawingGame() {
             ref={wrapRef}
             className={`relative min-h-70 flex-1 overflow-hidden rounded-2xl border border-zinc-200/90 bg-white shadow-[inset_0_1px_0_0_rgba(255,255,255,1),0_1px_3px_rgba(0,0,0,0.06)] sm:min-h-90 ${
               role === 'drawer' &&
+              !isSpectator &&
               !roundSolved &&
               drawerTurnPhase === 'drawing'
                 ? 'cursor-crosshair'
@@ -1048,6 +1075,7 @@ export default function GuessDrawingGame() {
               style={{
                 pointerEvents:
                   role === 'drawer' &&
+                  !isSpectator &&
                   !roundSolved &&
                   drawerTurnPhase === 'drawing'
                     ? 'auto'
@@ -1055,6 +1083,7 @@ export default function GuessDrawingGame() {
               }}
             />
             {role === 'drawer' &&
+              !isSpectator &&
               !roundSolved &&
               drawerTurnPhase === 'drawing' && (
               <div className="pointer-events-none absolute right-2 top-2 z-10 max-w-[42%] rounded-md border border-accent/30 bg-white/95 px-2 py-1 shadow-md backdrop-blur-sm">
@@ -1114,7 +1143,7 @@ export default function GuessDrawingGame() {
               onSubmit={sendGuess}
               className="shrink-0 border-t border-zinc-200 bg-zinc-50/90 p-3"
             >
-              {role === 'guesser' && !roundSolved && gamePhase === 'playing' ? (
+              {role === 'guesser' && !isSpectator && !roundSolved && gamePhase === 'playing' ? (
                 <div className="flex gap-2">
                   <input
                     value={guessInput}
@@ -1134,13 +1163,15 @@ export default function GuessDrawingGame() {
                 </div>
               ) : (
                 <p className="text-center text-xs text-zinc-500">
-                  {gamePhase === 'leaderboard'
-                    ? 'Check the leaderboard, then tap continue for the next round.'
-                    : role === 'drawer' && drawerTurnPhase === 'reveal'
-                      ? 'The word is on the canvas. You’ll switch to Guessing automatically.'
-                      : role === 'drawer'
-                        ? 'Switch to “Guessing” to type guesses, or open another browser as a guesser later.'
-                        : 'This round is over. The leaderboard opens after a correct guess.'}
+                  {isSpectator
+                    ? 'Spectating — you can guess when the next match starts.'
+                    : gamePhase === 'leaderboard'
+                      ? 'Check the leaderboard, then tap continue for the next round.'
+                      : role === 'drawer' && drawerTurnPhase === 'reveal'
+                        ? 'The word is on the canvas. You’ll switch to Guessing automatically.'
+                        : role === 'drawer'
+                          ? 'Switch to “Guessing” to type guesses, or open another browser as a guesser later.'
+                          : 'This round is over. The leaderboard opens after a correct guess.'}
                 </p>
               )}
             </form>
@@ -1151,7 +1182,7 @@ export default function GuessDrawingGame() {
       <MobileChatFloatingToasts
         messages={messages}
         expanded={mobileGuessesOpen}
-        enabled={role === 'guesser'}
+        enabled={role === 'guesser' && !isSpectator}
         theme="light"
       />
 
@@ -1179,13 +1210,15 @@ export default function GuessDrawingGame() {
             </form>
           ) : (
             <div className="rounded-xl border border-border bg-base px-2 py-2 text-center text-[10px] leading-snug text-muted">
-              {gamePhase === 'leaderboard'
-                ? 'Leaderboard open — use desktop panel or expand to read.'
-                : role === 'drawer' && drawerTurnPhase === 'reveal'
-                  ? 'Drawer: word on canvas. Guessing switches soon.'
-                  : role === 'drawer'
-                    ? 'Switch to Guessing to type, or use another device as guesser.'
-                    : 'Round over — expand to read chat.'}
+              {isSpectator
+                ? 'Spectating — you can guess when the next match starts.'
+                : gamePhase === 'leaderboard'
+                  ? 'Leaderboard open — use desktop panel or expand to read.'
+                  : role === 'drawer' && drawerTurnPhase === 'reveal'
+                    ? 'Drawer: word on canvas. Guessing switches soon.'
+                    : role === 'drawer'
+                      ? 'Switch to Guessing to type, or use another device as guesser.'
+                      : 'Round over — expand to read chat.'}
             </div>
           )
         }

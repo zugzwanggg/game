@@ -4,7 +4,7 @@ import crypto from 'node:crypto'
 import { verifyToken } from './auth/token.js'
 import { AUTH_COOKIE_NAME, getAuthSecret } from './auth/middleware.js'
 import { applyPlayerLeftRoom, deleteRoom, getRoom, tickRoomTimers, touchRoom } from './rooms/store.js'
-import type { RoomPlayer } from './rooms/types.js'
+import type { RoomPlayer, RoomState } from './rooms/types.js'
 import { normalizeGuess, pickRandomWord, toHint } from './games/drawing/words.js'
 import { startMemeMatch } from './games/meme/engine.js'
 import { sanitizeMemeGif } from './games/meme/sanitize.js'
@@ -40,6 +40,32 @@ const startedSpyByRoom = new Map<string, number>()
 const startedMafiaByRoom = new Map<string, number>()
 const startedLiarByRoom = new Map<string, number>()
 
+function roomIsInActiveMatch(room: RoomState): boolean {
+  switch (room.game) {
+    case 'drawing':
+      return Boolean(room.drawingGame && room.drawingGame.status !== 'lobby')
+    case 'spy':
+      return Boolean(room.spyGame && room.spyGame.status !== 'lobby')
+    case 'mafia':
+      return Boolean(room.mafiaGame && room.mafiaGame.status !== 'lobby')
+    case 'liar':
+      return Boolean(room.liarGame && room.liarGame.status !== 'lobby')
+    case 'meme':
+      return Boolean(room.memeGame && room.memeGame.status !== 'lobby')
+    default:
+      return false
+  }
+}
+
+function roomIsInLobby(room: RoomState): boolean {
+  return !roomIsInActiveMatch(room)
+}
+
+function playerIsSpectator(room: RoomState | undefined, playerId: string | null | undefined): boolean {
+  if (!room || !playerId) return false
+  return room.players.some((p) => p.id === playerId && p.spectator)
+}
+
 export function initSocket(httpServer: HttpServer): Server {
   io = new Server(httpServer, {
     cors: {
@@ -48,6 +74,29 @@ export function initSocket(httpServer: HttpServer): Server {
       credentials: true,
     },
   })
+
+  /** Last player alone in an active match: cancel match, notify, delete room. */
+  function dissolveRoomIfOnlyPlayerLeftDuringMatch(code: string): boolean {
+    const room = getRoom(code)
+    if (!room || room.players.length !== 1) return false
+    if (!roomIsInActiveMatch(room)) return false
+    const payload = {
+      reason: 'everyone_left' as const,
+      message: 'Everyone else left the game. The match was cancelled.',
+    }
+    for (const s of io!.sockets.sockets.values()) {
+      if (!s.rooms?.has(code)) continue
+      s.emit('room:match_abandoned', payload)
+      void s.leave(code)
+    }
+    deleteRoom(code)
+    startedTurnByRoom.delete(code)
+    revealedTurnByRoom.delete(code)
+    startedSpyByRoom.delete(code)
+    startedMafiaByRoom.delete(code)
+    startedLiarByRoom.delete(code)
+    return true
+  }
 
   function getCookie(header: string | undefined, name: string): string | null {
     if (!header) return null
@@ -96,6 +145,10 @@ export function initSocket(httpServer: HttpServer): Server {
       const sg = room.spyGame
       if (!sg || room.game !== 'spy') return
       if (!sg.matchId || sg.status === 'lobby') return
+      if (room.players?.some((pl: RoomPlayer) => pl.id === targetPlayerId && pl.spectator)) {
+        sock.emit('game:spy:role', { role: 'spectator' })
+        return
+      }
       const last = (sock.data as any).lastSpyRoleMatchIdSent as number | undefined
       if (!opts?.force && last === sg.matchId) return
         ; (sock.data as any).lastSpyRoleMatchIdSent = sg.matchId
@@ -122,6 +175,10 @@ export function initSocket(httpServer: HttpServer): Server {
       const g = room.mafiaGame
       if (!g || room.game !== 'mafia') return
       if (!g.matchId || g.status === 'lobby') return
+      if (room.players?.some((pl: RoomPlayer) => pl.id === targetPlayerId && pl.spectator)) {
+        sock.emit('game:mafia:role', { role: 'spectator' })
+        return
+      }
       const last = (sock.data as any).lastMafiaRoleMatchIdSent as number | undefined
       if (!opts?.force && last === g.matchId) return
         ; (sock.data as any).lastMafiaRoleMatchIdSent = g.matchId
@@ -156,8 +213,19 @@ export function initSocket(httpServer: HttpServer): Server {
       const room = getRoom(code)
       if (!room) return
       tickRoomTimers(code)
+      if (roomIsInLobby(room)) {
+        for (const p of room.players) {
+          if (p.spectator) p.spectator = false
+        }
+      }
       const now = Date.now()
       const dg = room.drawingGame
+      if (room.game === 'drawing' && dg && dg.status !== 'lobby' && dg.matchRosterIds.length > 0) {
+        const roster = new Set(dg.matchRosterIds)
+        for (const p of room.players) {
+          if (roster.has(p.id)) p.spectator = false
+        }
+      }
       const drawSecLeft =
         dg?.status === 'playing' && dg.endsAt
           ? Math.max(0, Math.ceil((dg.endsAt - now) / 1000))
@@ -521,11 +589,26 @@ export function initSocket(httpServer: HttpServer): Server {
           `Guest-${crypto.randomInt(1000, 9999)}`
 
         const playerId = principal?.id ?? crypto.randomUUID()
+        const existing = room.players.find((p) => p.id === playerId)
+        const dgJoin = room.drawingGame
+        const inDrawingMatchRoster =
+          room.game === 'drawing' &&
+          dgJoin &&
+          dgJoin.status !== 'lobby' &&
+          dgJoin.matchRosterIds.length > 0 &&
+          dgJoin.matchRosterIds.includes(playerId)
+        // Match roster members are never spectators (reconnect / duplicate join must clear stale flag).
+        const spectator = inDrawingMatchRoster
+          ? false
+          : existing
+            ? Boolean(existing.spectator)
+            : roomIsInActiveMatch(room)
         const player: RoomPlayer = {
           id: playerId,
           kind: principal?.kind === 'user' ? 'user' : 'guest',
           displayName,
-          joinedAt: Date.now(),
+          joinedAt: existing?.joinedAt ?? Date.now(),
+          spectator,
         }
 
         // upsert by id
@@ -543,52 +626,54 @@ export function initSocket(httpServer: HttpServer): Server {
         cb?.({ ok: true, room: { code, game: room.game }, player })
         emitRoomState(code)
 
-        // If a drawing round is already running, make sure the drawer receives the word
-        // even if they missed the initial event (e.g. navigated after start).
-        if (
-          room.game === 'drawing' &&
-          room.drawingGame &&
-          room.drawingGame.status !== 'lobby' &&
-          room.drawingGame.drawerPlayerId === playerId &&
-          room.drawingGame.word
-        ) {
-          socket.emit('game:drawing:word', { word: room.drawingGame.word })
-        }
-        // If the round is in reveal, ensure late joiners see the revealed word too.
-        if (
-          room.game === 'drawing' &&
-          room.drawingGame &&
-          room.drawingGame.status === 'reveal' &&
-          room.drawingGame.word
-        ) {
-          socket.emit('game:drawing:reveal', { word: room.drawingGame.word })
-        }
+        if (!player.spectator) {
+          // If a drawing round is already running, make sure the drawer receives the word
+          // even if they missed the initial event (e.g. navigated after start).
+          if (
+            room.game === 'drawing' &&
+            room.drawingGame &&
+            room.drawingGame.status !== 'lobby' &&
+            room.drawingGame.drawerPlayerId === playerId &&
+            room.drawingGame.word
+          ) {
+            socket.emit('game:drawing:word', { word: room.drawingGame.word })
+          }
+          // If the round is in reveal, ensure late joiners see the revealed word too.
+          if (
+            room.game === 'drawing' &&
+            room.drawingGame &&
+            room.drawingGame.status === 'reveal' &&
+            room.drawingGame.word
+          ) {
+            socket.emit('game:drawing:reveal', { word: room.drawingGame.word })
+          }
 
-        // If Spy match is running, deliver private role info to the joining player.
-        if (
-          room.game === 'spy' &&
-          room.spyGame &&
-          room.spyGame.status !== 'lobby' &&
-          room.spyGame.matchId
-        ) {
-          emitSpyRole(room as any, playerId, socket as any)
-        }
+          // If Spy match is running, deliver private role info to the joining player.
+          if (
+            room.game === 'spy' &&
+            room.spyGame &&
+            room.spyGame.status !== 'lobby' &&
+            room.spyGame.matchId
+          ) {
+            emitSpyRole(room as any, playerId, socket as any)
+          }
 
-        if (
-          room.game === 'mafia' &&
-          room.mafiaGame &&
-          room.mafiaGame.status !== 'lobby' &&
-          room.mafiaGame.matchId
-        ) {
-          emitMafiaRole(room as any, playerId, socket as any)
-        }
+          if (
+            room.game === 'mafia' &&
+            room.mafiaGame &&
+            room.mafiaGame.status !== 'lobby' &&
+            room.mafiaGame.matchId
+          ) {
+            emitMafiaRole(room as any, playerId, socket as any)
+          }
 
-        if (
-          room.game === 'liar' &&
-          room.liarGame &&
-          room.liarGame.status !== 'lobby'
-        ) {
-          socket.emit('game:liar:hand', { cards: room.liarGame.hands[playerId] ?? [] })
+          if (
+            room.game === 'liar' &&
+            room.liarGame &&
+            room.liarGame.status !== 'lobby'
+          ) {
+            socket.emit('game:liar:hand', { cards: room.liarGame.hands[playerId] ?? [] })
+          }
         }
       },
     )
@@ -605,6 +690,10 @@ export function initSocket(httpServer: HttpServer): Server {
       const players = [...room.players].sort((a, b) => a.joinedAt - b.joinedAt)
       if (players.length < 2) return
 
+      for (const p of room.players) {
+        p.spectator = false
+      }
+
       const g = room.drawingGame
       // Start / restart the match from round 1.
       g.matchId += 1
@@ -612,7 +701,11 @@ export function initSocket(httpServer: HttpServer): Server {
       g.matchRound = 1
       g.turnIndex = 0
       g.order = players.map((p) => p.id)
+      g.matchRosterIds = [...g.order]
       g.scores = {}
+      for (const id of g.order) {
+        g.scores[id] = 0
+      }
       const drawerPlayerId = g.order[0]!
       g.drawerPlayerId = drawerPlayerId
 
@@ -679,13 +772,15 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room || room.game !== 'spy' || !room.spyGame) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
       const already = Boolean(room.spyGame.earlyVoteYes?.[joinedPlayerId])
       requestEarlyVote(room, room.spyGame, joinedPlayerId, Date.now())
       if (!already) {
         const caller = room.players.find((p) => p.id === joinedPlayerId)
         const name = caller?.displayName ?? 'Player'
-        const yes = room.players.filter((p) => room.spyGame!.earlyVoteYes?.[p.id]).length
-        const total = room.players.length
+        const active = room.players.filter((p) => !p.spectator)
+        const yes = active.filter((p) => room.spyGame!.earlyVoteYes?.[p.id]).length
+        const total = active.length
         io!.to(joinedCode).emit('chat:message', {
           id: crypto.randomUUID(),
           author: 'Game',
@@ -702,6 +797,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room || room.game !== 'spy' || !room.spyGame) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
       const target = String(payload?.targetPlayerId ?? '').trim()
       if (!target) return
       castSpyVote(room, room.spyGame, joinedPlayerId, target, Date.now())
@@ -713,6 +809,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room || room.game !== 'spy' || !room.spyGame) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
       const guess = String(payload?.guess ?? '').trim().slice(0, 60)
       if (!guess) return
       spyGuess(room, room.spyGame, joinedPlayerId, guess)
@@ -753,6 +850,7 @@ export function initSocket(httpServer: HttpServer): Server {
         if (!joinedCode || !joinedPlayerId) return
         const room = getRoom(joinedCode)
         if (!room || room.game !== 'liar' || !room.liarGame) return
+        if (playerIsSpectator(room, joinedPlayerId)) return
         const ids = Array.isArray(payload?.cardIds) ? payload!.cardIds!.map((x) => String(x)) : []
         const claimedRank = String(payload?.claimedRank ?? '')
         const claimedCount = Number(payload?.claimedCount)
@@ -767,6 +865,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room || room.game !== 'liar' || !room.liarGame) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
       if (tryCallLiar(room, joinedPlayerId, Date.now())) {
         touchRoom(joinedCode)
         emitRoomState(joinedCode)
@@ -795,6 +894,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room || room.game !== 'mafia' || !room.mafiaGame) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
       const g = room.mafiaGame
       if (g.status !== 'day') return
       if (g.daySkipYes[joinedPlayerId]) return
@@ -829,6 +929,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room || room.game !== 'mafia' || !room.mafiaGame) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
       const target = String(payload?.targetPlayerId ?? '').trim()
       if (!target) return
       if (tryMafiaKillVote(room, joinedPlayerId, target)) {
@@ -841,6 +942,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room || room.game !== 'mafia' || !room.mafiaGame) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
       const ok = requestNightSkip(room, joinedPlayerId, Date.now())
       if (!ok) return
       const g2 = room.mafiaGame!
@@ -870,6 +972,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room || room.game !== 'mafia' || !room.mafiaGame) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
       const target = String(payload?.targetPlayerId ?? '').trim()
       if (!target) return
       if (tryDoctorSave(room, joinedPlayerId, target)) {
@@ -883,6 +986,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room || room.game !== 'mafia' || !room.mafiaGame) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
       const target = String(payload?.targetPlayerId ?? '').trim()
       if (!target) return
       const res = tryDetectiveInvestigate(room, joinedPlayerId, target)
@@ -897,6 +1001,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room || room.game !== 'mafia' || !room.mafiaGame) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
       const target = String(payload?.targetPlayerId ?? '').trim()
       if (!target) return
       if (tryDetectiveKill(room, joinedPlayerId, target)) {
@@ -910,6 +1015,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room || room.game !== 'mafia' || !room.mafiaGame) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
       const target = String(payload?.targetPlayerId ?? '').trim()
       if (!target) return
       if (tryDayVote(room, joinedPlayerId, target)) {
@@ -932,6 +1038,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room?.memeGame || room.memeGame.status !== 'context_vote') return
+      if (playerIsSpectator(room, joinedPlayerId)) return
       const ix: 0 | 1 = payload?.promptIndex === 1 ? 1 : 0
       room.memeGame.contextVotes[joinedPlayerId] = ix
       touchRoom(joinedCode)
@@ -942,6 +1049,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room?.memeGame || room.memeGame.status !== 'gif_pick') return
+      if (playerIsSpectator(room, joinedPlayerId)) return
       const m = room.memeGame
       if (m.winningPromptIndex === null) return
       const gif = sanitizeMemeGif(payload?.gif)
@@ -958,6 +1066,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room?.memeGame || room.memeGame.status !== 'gif_vote') return
+      if (playerIsSpectator(room, joinedPlayerId)) return
       const m = room.memeGame
       const target = String(payload?.targetPlayerId ?? '').trim()
       if (!target || target === joinedPlayerId) return
@@ -980,7 +1089,7 @@ export function initSocket(httpServer: HttpServer): Server {
           startedSpyByRoom.delete(code)
           startedMafiaByRoom.delete(code)
           startedLiarByRoom.delete(code)
-        } else {
+        } else if (!dissolveRoomIfOnlyPlayerLeftDuringMatch(code)) {
           applyPlayerLeftRoom(room)
           touchRoom(code)
           emitRoomState(code)
@@ -997,6 +1106,7 @@ export function initSocket(httpServer: HttpServer): Server {
         if (!joinedCode || !joinedPlayerId) return
         const room = getRoom(joinedCode)
         if (!room) return
+        if (playerIsSpectator(room, joinedPlayerId)) return
         const target = String(payload?.targetPlayerId ?? '').trim()
         if (!target || target === joinedPlayerId) return
         if (!room.players.some((p) => p.id === target)) return
@@ -1019,15 +1129,13 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode) return
       const room = getRoom(joinedCode)
       if (!room) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
       const text = String(payload?.text ?? '').trim().slice(0, 240)
       if (!text) return
 
       if (room.game === 'mafia' && room.mafiaGame) {
         const g = room.mafiaGame
-        if (g.status === 'night') {
-          if (!joinedPlayerId) return
-          if (g.roles[joinedPlayerId] !== 'detective' || g.alive[joinedPlayerId] !== true) return
-        }
+        if (g.status === 'night') return
         if (g.status === 'day' || g.status === 'voting') {
           if (!joinedPlayerId) return
           const alive = g.alive[joinedPlayerId] === true
@@ -1083,9 +1191,14 @@ export function initSocket(httpServer: HttpServer): Server {
     })
 
     socket.on('drawing:stroke', (payload: any) => {
-      if (!joinedCode) return
+      if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
+      if (room.game !== 'drawing' || !room.drawingGame) return
+      const dg = room.drawingGame
+      if (dg.status !== 'playing') return
+      if (!dg.drawerPlayerId || dg.drawerPlayerId !== joinedPlayerId) return
       if (
         !payload ||
         typeof payload.id !== 'string' ||
@@ -1118,6 +1231,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
       if (room.game !== 'drawing' || !room.drawingGame) return
       const dg = room.drawingGame
       if (dg.status !== 'playing') return
@@ -1129,9 +1243,13 @@ export function initSocket(httpServer: HttpServer): Server {
     })
 
     socket.on('drawing:clear', () => {
-      if (!joinedCode) return
+      if (!joinedCode || !joinedPlayerId) return
       const room = getRoom(joinedCode)
       if (!room) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
+      if (room.game !== 'drawing' || !room.drawingGame) return
+      const dg = room.drawingGame
+      if (dg.status !== 'playing' || dg.drawerPlayerId !== joinedPlayerId) return
       room.drawing.strokes = []
       touchRoom(joinedCode)
       io!.to(joinedCode).emit('drawing:clear')
@@ -1160,7 +1278,7 @@ export function initSocket(httpServer: HttpServer): Server {
         startedSpyByRoom.delete(code)
         startedMafiaByRoom.delete(code)
         startedLiarByRoom.delete(code)
-      } else {
+      } else if (!dissolveRoomIfOnlyPlayerLeftDuringMatch(code)) {
         applyPlayerLeftRoom(room)
         touchRoom(code)
         emitRoomState(code)

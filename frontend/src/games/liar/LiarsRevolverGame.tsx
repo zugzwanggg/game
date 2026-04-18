@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import Avatar from '../../components/ui/Avatar'
 import Button from '../../components/ui/Button'
 import { RoomPresenceBanner } from '../../components/ui/RoomPresenceBanner'
+import { SpectatorBanner } from '../../components/ui/SpectatorBanner'
 import { RoomVoiceDock } from '../../components/voice/RoomVoiceDock'
 import { useRoomPresenceNotification } from '../../hooks/useRoomPresenceNotification'
 import { joinRoom } from '../../lib/roomJoin'
@@ -107,7 +108,7 @@ export default function LiarsRevolverGame() {
   const isOnline = Boolean(roomCode)
 
   const [playerId, setPlayerId] = useState<string | null>(null)
-  const [players, setPlayers] = useState<{ id: string; displayName: string }[]>([])
+  const [players, setPlayers] = useState<{ id: string; displayName: string; spectator?: boolean }[]>([])
   const [createdByUserId, setCreatedByUserId] = useState<string | null>(null)
   const [liar, setLiar] = useState<LiarPublic | null>(null)
   const [myHand, setMyHand] = useState<LiarCard[]>([])
@@ -160,6 +161,10 @@ export default function LiarsRevolverGame() {
 
   const isHost = Boolean(playerId && createdByUserId && playerId === createdByUserId)
 
+  const isSpectator = Boolean(
+    playerId && players.some((p) => p.id === playerId && p.spectator),
+  )
+
   const leaveRoomSocket = () => {
     if (!roomCode) return
     const socket = getSocket()
@@ -194,9 +199,10 @@ export default function LiarsRevolverGame() {
         const next = (state.players as any[]).map((p) => ({
           id: String(p.id),
           displayName: String(p.displayName ?? 'Player'),
+          spectator: Boolean(p.spectator),
         }))
         setPlayers(next)
-        handlePlayersSnapshot(next)
+        handlePlayersSnapshot(next.map(({ id, displayName }) => ({ id, displayName })))
       }
       if (typeof state.createdByUserId === 'string') setCreatedByUserId(state.createdByUserId)
       setLiar(state.liarGame ?? null)
@@ -248,12 +254,14 @@ export default function LiarsRevolverGame() {
 
   const bluffSec = timers.liarBluffSecLeft ?? 0
   const canPlay =
+    !isSpectator &&
     liar?.status === 'playing' &&
     liar.phase === 'turn' &&
     playerId &&
     liar.activePlayerId === playerId
 
   const canCall =
+    !isSpectator &&
     liar?.status === 'playing' &&
     liar.phase === 'bluff' &&
     playerId &&
@@ -262,9 +270,14 @@ export default function LiarsRevolverGame() {
     bluffSec > 0
 
   const showMyHand = Boolean(
-    playerId && liar?.status === 'playing' && !liar.revolvers[playerId]?.eliminated,
+    !isSpectator &&
+      playerId &&
+      liar?.status === 'playing' &&
+      !liar.revolvers[playerId]?.eliminated,
   )
-  const showActionRails = Boolean(playerId && liar?.status === 'playing')
+  const showActionRails = Boolean(
+    !isSpectator && playerId && liar?.status === 'playing',
+  )
 
   const playCards = () => {
     if (!canPlay || selected.size < 1) return
@@ -279,6 +292,7 @@ export default function LiarsRevolverGame() {
   }
 
   const callLiar = () => {
+    if (isSpectator) return
     if (!canCall) return
     const socket = getSocket()
     playLiarCallSfx()
@@ -319,6 +333,12 @@ export default function LiarsRevolverGame() {
         kind={presencePayload?.kind ?? null}
         onDismiss={dismissPresence}
       />
+
+      {isSpectator ? (
+        <div className="shrink-0 px-3 pb-2 sm:px-4">
+          <SpectatorBanner />
+        </div>
+      ) : null}
 
       <div className="flex shrink-0 flex-col gap-2 border-b border-border px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-4 sm:py-3">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
