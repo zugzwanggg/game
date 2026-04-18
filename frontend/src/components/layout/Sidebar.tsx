@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { AuthChoiceModal } from '../auth/AuthChoiceModal'
 import { useAuth } from '../../context/AuthProvider'
 import { useVoiceMode } from '../../context/useVoiceMode'
 import { apiFetch } from '../../lib/api'
@@ -15,6 +16,7 @@ import { readStoredSfxEnabled, setSfxEnabled } from '../../lib/sfxPrefs'
 import { getRecentRooms, removeRecentRoom, type RecentRoom } from '../../lib/recentRooms'
 import Avatar from '../ui/Avatar'
 import Badge from '../ui/Badge'
+import Button from '../ui/Button'
 
 const NAV = [
   { id: 'games' as const, icon: Gamepad2, label: 'Games' },
@@ -33,7 +35,8 @@ type SidebarProps = {
 export default function Sidebar({ mobileOpen = true, onRequestClose }: SidebarProps) {
   const navigate = useNavigate()
   const [tab, setTab] = useState<TabId>('games')
-  const { principal, logout } = useAuth()
+  const { principal, logout, guest } = useAuth()
+  const [authModalOpen, setAuthModalOpen] = useState(false)
   const { voiceMode, setVoiceMode } = useVoiceMode()
   const [stats, setStats] = useState<{ gamesPlayed: number; wins: number; bestScore: number } | null>(null)
   const [recentRooms, setRecentRooms] = useState<RecentRoom[]>([])
@@ -76,20 +79,34 @@ export default function Sidebar({ mobileOpen = true, onRequestClose }: SidebarPr
     }))
   }, [recentRooms])
 
-  const name =
-    principal?.kind === 'user'
+  const identityName =
+    principal?.kind === 'user' || principal?.kind === 'guest'
       ? principal.displayName
-      : principal?.kind === 'guest'
-        ? principal.displayName
-        : 'Not signed in'
+      : ''
   const badge =
     principal?.kind === 'user'
       ? 'Account'
       : principal?.kind === 'guest'
         ? 'Guest'
-        : 'Anonymous'
+        : null
 
   return (
+    <>
+    <AuthChoiceModal
+      open={authModalOpen}
+      onClose={() => setAuthModalOpen(false)}
+      title="Play with an account?"
+      subtitle="Sign in to save stats and history, or continue as a guest."
+      onContinueGuest={(nickname) => {
+        void (async () => {
+          try {
+            await guest({ displayName: nickname })
+          } catch {
+            /* guest() failed; user can try again from Sign in */
+          }
+        })()
+      }}
+    />
     <aside
       className={`fixed inset-y-0 left-0 z-50 flex h-full w-[min(18rem,88vw)] shrink-0 flex-col border-r border-border bg-surface pt-[env(safe-area-inset-top,0px)] shadow-xl transition-transform duration-200 ease-out lg:static lg:z-auto lg:w-64 lg:max-w-none lg:translate-x-0 lg:pt-0 lg:shadow-none ${
         mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
@@ -184,55 +201,83 @@ export default function Sidebar({ mobileOpen = true, onRequestClose }: SidebarPr
 
         {tab === 'profile' && (
           <div className="space-y-4">
-            <div className="rounded-xl bg-card p-4 text-center">
-              <div className="flex justify-center">
-                <Avatar name={name} size="lg" />
-              </div>
-              <p className="mt-3 text-sm font-bold text-text">
-                {name}
-              </p>
-              <div className="mt-1 flex justify-center">
-                <Badge color="muted">{badge}</Badge>
-              </div>
-              <p className="mt-2 text-xs text-muted">
-                {principal?.kind === 'user'
-                  ? 'Signed in.'
-                  : 'Sign up to save stats and history'}
-              </p>
-            </div>
-
-            <div className="space-y-3 rounded-xl bg-card p-4">
-              {[
-                { label: 'Games played', value: principal?.kind === 'user' ? String(stats?.gamesPlayed ?? '-') : '12' },
-                { label: 'Total wins', value: principal?.kind === 'user' ? String(stats?.wins ?? '-') : '7' },
-                { label: 'Best score', value: principal?.kind === 'user' ? String(stats?.bestScore ?? '-') : '1,240' },
-              ].map((stat) => (
-                <div
-                  key={stat.label}
-                  className="flex items-center justify-between"
-                >
-                  <span className="text-xs text-muted">{stat.label}</span>
-                  <span className="text-sm font-bold text-text">
-                    {stat.value}
-                  </span>
+            {!principal ? (
+              <>
+                <div className="rounded-xl bg-card p-4 text-center">
+                  <p className="text-sm font-bold text-text">Welcome</p>
+                  <p className="mt-2 text-xs leading-relaxed text-muted">
+                    Sign in to save stats and history, or continue as a guest to play right away.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    className="mt-4 w-full justify-center"
+                    onClick={() => setAuthModalOpen(true)}
+                  >
+                    Sign in
+                  </Button>
                 </div>
-              ))}
-            </div>
-
-            {principal?.kind !== 'user' ? (
-              <Link
-                to="/signup"
-                className="block w-full rounded-xl bg-accent py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-accent/90"
-              >
-                Create Account
-              </Link>
+                <Link
+                  to="/signup"
+                  className="block w-full rounded-xl border border-border bg-surface py-2.5 text-center text-sm font-semibold text-text transition-colors hover:bg-card"
+                >
+                  Create account
+                </Link>
+              </>
             ) : (
-              <Link
-                to="/games"
-                className="block w-full rounded-xl bg-surface py-2.5 text-center text-sm font-semibold text-text transition-colors hover:bg-card"
-              >
-                You&apos;re all set
-              </Link>
+              <>
+                <div className="rounded-xl bg-card p-4 text-center">
+                  <div className="flex justify-center">
+                    <Avatar name={identityName} size="lg" />
+                  </div>
+                  <p className="mt-3 text-sm font-bold text-text">
+                    {identityName}
+                  </p>
+                  <div className="mt-1 flex justify-center">
+                    <Badge color="muted">{badge}</Badge>
+                  </div>
+                  <p className="mt-2 text-xs text-muted">
+                    {principal.kind === 'user'
+                      ? 'Signed in.'
+                      : 'Sign up to save stats and history'}
+                  </p>
+                </div>
+
+                <div className="space-y-3 rounded-xl bg-card p-4">
+                  {[
+                    { label: 'Games played', value: principal.kind === 'user' ? String(stats?.gamesPlayed ?? '-') : '12' },
+                    { label: 'Total wins', value: principal.kind === 'user' ? String(stats?.wins ?? '-') : '7' },
+                    { label: 'Best score', value: principal.kind === 'user' ? String(stats?.bestScore ?? '-') : '1,240' },
+                  ].map((stat) => (
+                    <div
+                      key={stat.label}
+                      className="flex items-center justify-between"
+                    >
+                      <span className="text-xs text-muted">{stat.label}</span>
+                      <span className="text-sm font-bold text-text">
+                        {stat.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {principal.kind !== 'user' ? (
+                  <Link
+                    to="/signup"
+                    className="block w-full rounded-xl bg-accent py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-accent/90"
+                  >
+                    Create Account
+                  </Link>
+                ) : (
+                  <Link
+                    to="/games"
+                    className="block w-full rounded-xl bg-surface py-2.5 text-center text-sm font-semibold text-text transition-colors hover:bg-card"
+                  >
+                    You&apos;re all set
+                  </Link>
+                )}
+              </>
             )}
           </div>
         )}
@@ -326,12 +371,22 @@ export default function Sidebar({ mobileOpen = true, onRequestClose }: SidebarPr
                   </button>
                 ) : (
                   <>
-                    <Link
-                      to="/login"
-                      className="rounded-lg px-3 py-2.5 text-center text-sm font-medium text-muted transition-colors hover:bg-card hover:text-text"
-                    >
-                      Sign in
-                    </Link>
+                    {!principal ? (
+                      <button
+                        type="button"
+                        className="w-full rounded-lg px-3 py-2.5 text-center text-sm font-medium text-muted transition-colors hover:bg-card hover:text-text"
+                        onClick={() => setAuthModalOpen(true)}
+                      >
+                        Sign in
+                      </button>
+                    ) : (
+                      <Link
+                        to="/login"
+                        className="block rounded-lg px-3 py-2.5 text-center text-sm font-medium text-muted transition-colors hover:bg-card hover:text-text"
+                      >
+                        Sign in
+                      </Link>
+                    )}
                     <Link
                       to="/signup"
                       className="rounded-lg px-3 py-2.5 text-center text-sm font-medium text-muted transition-colors hover:bg-card hover:text-text"
@@ -359,23 +414,34 @@ export default function Sidebar({ mobileOpen = true, onRequestClose }: SidebarPr
       </div>
 
       <div className="border-t border-border px-4 py-4">
-        <div className="flex items-center gap-3">
-          <Avatar name={name} size="sm" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-semibold text-text">
-              {name}
-            </p>
-            <p className="text-xs text-muted">
-              {principal?.kind === 'user'
-                ? 'Online'
-                : principal?.kind === 'guest'
-                  ? 'Guest'
-                  : 'Choose guest or sign in'}
-            </p>
+        {!principal ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            className="w-full justify-center"
+            onClick={() => setAuthModalOpen(true)}
+          >
+            Sign in
+          </Button>
+        ) : (
+          <div className="flex items-center gap-3">
+            <Avatar name={identityName} size="sm" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-text">
+                {identityName}
+              </p>
+              <p className="text-xs text-muted">
+                {principal.kind === 'user'
+                  ? 'Online'
+                  : 'Guest'}
+              </p>
+            </div>
+            <div className="h-2 w-2 shrink-0 rounded-full bg-teal" title="Online" />
           </div>
-          <div className="h-2 w-2 rounded-full bg-teal" title="Online" />
-        </div>
+        )}
       </div>
     </aside>
+    </>
   )
 }

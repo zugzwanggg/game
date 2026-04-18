@@ -77,11 +77,11 @@ export function initSocket(httpServer: HttpServer): Server {
     if (!raw) return next()
     const payload = verifyToken(String(raw), getAuthSecret())
     if (payload) {
-      ;(socket.data as any).token = payload
-      ;(socket.data as any).principal =
-        payload.typ === 'user'
-          ? { kind: 'user', id: payload.sub, displayName: payload.name }
-          : { kind: 'guest', id: payload.sub, displayName: payload.name }
+      ; (socket.data as any).token = payload
+        ; (socket.data as any).principal =
+          payload.typ === 'user'
+            ? { kind: 'user', id: payload.sub, displayName: payload.name }
+            : { kind: 'guest', id: payload.sub, displayName: payload.name }
     }
     next()
   })
@@ -98,7 +98,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!sg.matchId || sg.status === 'lobby') return
       const last = (sock.data as any).lastSpyRoleMatchIdSent as number | undefined
       if (!opts?.force && last === sg.matchId) return
-      ;(sock.data as any).lastSpyRoleMatchIdSent = sg.matchId
+        ; (sock.data as any).lastSpyRoleMatchIdSent = sg.matchId
       if (sg.spyPlayerId && targetPlayerId === sg.spyPlayerId) {
         sock.emit('game:spy:role', { role: 'spy' })
       } else {
@@ -124,7 +124,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!g.matchId || g.status === 'lobby') return
       const last = (sock.data as any).lastMafiaRoleMatchIdSent as number | undefined
       if (!opts?.force && last === g.matchId) return
-      ;(sock.data as any).lastMafiaRoleMatchIdSent = g.matchId
+        ; (sock.data as any).lastMafiaRoleMatchIdSent = g.matchId
       const role = g.roles[targetPlayerId]
       if (!role) {
         sock.emit('game:mafia:role', { role: null as null })
@@ -227,102 +227,102 @@ export function initSocket(httpServer: HttpServer): Server {
         mfg && room.game === 'mafia'
           ? mfg.status === 'results'
             ? {
-                matchId: mfg.matchId,
-                round: mfg.round,
-                status: mfg.status,
-                alive: mfg.alive,
-                phaseEndsAt: mfg.phaseEndsAt,
-                resultsEndsAt: mfg.resultsEndsAt,
-                winner: mfg.winner,
-                lastAnnouncement: mfg.lastAnnouncement,
-                roles: { ...mfg.roles },
-              }
+              matchId: mfg.matchId,
+              round: mfg.round,
+              status: mfg.status,
+              alive: mfg.alive,
+              phaseEndsAt: mfg.phaseEndsAt,
+              resultsEndsAt: mfg.resultsEndsAt,
+              winner: mfg.winner,
+              lastAnnouncement: mfg.lastAnnouncement,
+              roles: { ...mfg.roles },
+            }
             : {
-                matchId: mfg.matchId,
-                round: mfg.round,
-                status: mfg.status,
-                alive: mfg.alive,
-                phaseEndsAt: mfg.phaseEndsAt,
-                nightEndsAt: mfg.nightEndsAt,
-                dayEndsAt: mfg.dayEndsAt,
-                voteEndsAt: mfg.voteEndsAt,
-                resultsEndsAt: mfg.resultsEndsAt,
-                winner: mfg.winner,
-                lastAnnouncement: mfg.lastAnnouncement,
-                mafiaKillVoteCount: Object.keys(mfg.mafiaKillVotes ?? {}).length,
-                dayVoteCount: Object.keys(mfg.dayVotes ?? {}).length,
-                daySkipYesCount: Object.keys(mfg.daySkipYes ?? {}).filter(
-                  (id) => mfg.daySkipYes[id] && mfg.alive[id],
-                ).length,
-                nightSkipYesCount: Object.keys(mfg.nightSkipYes ?? {}).filter(
-                  (id) => mfg.nightSkipYes[id] && mfg.alive[id],
-                ).length,
-                nightActorsRequiredCount: (() => {
-                  const mafiaAlive = Object.entries(mfg.roles).filter(
-                    ([id, r]) => r === 'mafia' && mfg.alive[id],
-                  ).length
-                  const doc = Object.entries(mfg.roles).some(
-                    ([id, r]) => r === 'doctor' && mfg.alive[id],
-                  )
-                  const det = Object.entries(mfg.roles).some(
-                    ([id, r]) => r === 'detective' && mfg.alive[id],
-                  )
-                  return mafiaAlive + (doc ? 1 : 0) + (det ? 1 : 0)
-                })(),
-              }
+              matchId: mfg.matchId,
+              round: mfg.round,
+              status: mfg.status,
+              alive: mfg.alive,
+              phaseEndsAt: mfg.phaseEndsAt,
+              nightEndsAt: mfg.nightEndsAt,
+              dayEndsAt: mfg.dayEndsAt,
+              voteEndsAt: mfg.voteEndsAt,
+              resultsEndsAt: mfg.resultsEndsAt,
+              winner: mfg.winner,
+              lastAnnouncement: mfg.lastAnnouncement,
+              mafiaKillVoteCount: Object.keys(mfg.mafiaKillVotes ?? {}).length,
+              dayVoteCount: Object.keys(mfg.dayVotes ?? {}).length,
+              daySkipYesCount: Object.keys(mfg.daySkipYes ?? {}).filter(
+                (id) => mfg.daySkipYes[id] && mfg.alive[id],
+              ).length,
+              nightSkipYesCount: Object.keys(mfg.nightSkipYes ?? {}).filter(
+                (id) => mfg.nightSkipYes[id] && mfg.alive[id],
+              ).length,
+              nightActorsRequiredCount: (() => {
+                const mafiaAlive = Object.entries(mfg.roles).filter(
+                  ([id, r]) => r === 'mafia' && mfg.alive[id],
+                ).length
+                const doc = Object.entries(mfg.roles).some(
+                  ([id, r]) => r === 'doctor' && mfg.alive[id],
+                )
+                const det = Object.entries(mfg.roles).some(
+                  ([id, r]) => r === 'detective' && mfg.alive[id],
+                )
+                return mafiaAlive + (doc ? 1 : 0) + (det ? 1 : 0)
+              })(),
+            }
           : undefined
 
       const liarGamePublic =
         lg && room.game === 'liar'
           ? {
-              matchId: lg.matchId,
-              status: lg.status,
-              phase: lg.phase,
-              round: lg.round,
-              order: lg.order,
-              turnIndex: lg.turnIndex,
-              activePlayerId: lg.phase === 'turn' ? getActiveLiarPlayerId(lg) : null,
-              declarerId: lg.lastPlay?.playerId ?? null,
-              handSizes: Object.fromEntries(
-                room.players.map((p) => [p.id, lg.hands[p.id]?.length ?? 0]),
-              ),
-              pileCardCount: lg.pile.reduce((a, s) => a + s.cards.length, 0),
-              lastPlay: lg.lastPlay
-                ? {
-                    playerId: lg.lastPlay.playerId,
-                    playedCount: lg.lastPlay.cards.length,
-                    claimedRank: lg.lastPlay.claimedRank,
-                    claimedCount: lg.lastPlay.claimedCount,
-                  }
-                : null,
-              bluffEndsAt: lg.bluffEndsAt,
-              resolving: lg.resolving
-                ? {
-                    accuserId: lg.resolving.accuserId,
-                    wasLying: lg.resolving.wasLying,
-                    shooterId: lg.resolving.shooterId,
-                    revealedCards: lg.resolving.revealedCards,
-                    claimedRank: lg.resolving.claimedRank,
-                    claimedCount: lg.resolving.claimedCount,
-                    endsAt: lg.resolving.endsAt,
-                  }
-                : null,
-              shotResult: lg.shotResult,
-              revolvers: Object.fromEntries(
-                Object.entries(lg.revolvers).map(([id, r]) => [
-                  id,
-                  {
-                    pullCount: r.pullCount,
-                    eliminated: r.eliminated,
-                    immune: r.immune,
-                    pullHistory: [...r.pullHistory],
-                  },
-                ]),
-              ),
-              stats: { ...lg.stats },
-              winnerId: lg.winnerId,
-              log: lg.log.slice(-80),
-            }
+            matchId: lg.matchId,
+            status: lg.status,
+            phase: lg.phase,
+            round: lg.round,
+            order: lg.order,
+            turnIndex: lg.turnIndex,
+            activePlayerId: lg.phase === 'turn' ? getActiveLiarPlayerId(lg) : null,
+            declarerId: lg.lastPlay?.playerId ?? null,
+            handSizes: Object.fromEntries(
+              room.players.map((p) => [p.id, lg.hands[p.id]?.length ?? 0]),
+            ),
+            pileCardCount: lg.pile.reduce((a, s) => a + s.cards.length, 0),
+            lastPlay: lg.lastPlay
+              ? {
+                playerId: lg.lastPlay.playerId,
+                playedCount: lg.lastPlay.cards.length,
+                claimedRank: lg.lastPlay.claimedRank,
+                claimedCount: lg.lastPlay.claimedCount,
+              }
+              : null,
+            bluffEndsAt: lg.bluffEndsAt,
+            resolving: lg.resolving
+              ? {
+                accuserId: lg.resolving.accuserId,
+                wasLying: lg.resolving.wasLying,
+                shooterId: lg.resolving.shooterId,
+                revealedCards: lg.resolving.revealedCards,
+                claimedRank: lg.resolving.claimedRank,
+                claimedCount: lg.resolving.claimedCount,
+                endsAt: lg.resolving.endsAt,
+              }
+              : null,
+            shotResult: lg.shotResult,
+            revolvers: Object.fromEntries(
+              Object.entries(lg.revolvers).map(([id, r]) => [
+                id,
+                {
+                  pullCount: r.pullCount,
+                  eliminated: r.eliminated,
+                  immune: r.immune,
+                  pullHistory: [...r.pullHistory],
+                },
+              ]),
+            ),
+            stats: { ...lg.stats },
+            winnerId: lg.winnerId,
+            log: lg.log.slice(-80),
+          }
           : undefined
 
       const roomStateBase = {
@@ -339,42 +339,42 @@ export function initSocket(httpServer: HttpServer): Server {
         spyGame: sg
           ? sg.status === 'reveal'
             ? {
-                status: sg.status,
-                matchId: sg.matchId,
-                // reveal payload
-                revealedSpyPlayerId: sg.revealedSpyPlayerId,
-                revealedWord: sg.revealedWord,
-                winner: sg.winner,
-                selectedPlayerId: sg.selectedPlayerId,
-                tie: sg.tie,
-                spyGuessedCorrectly: sg.spyGuessedCorrectly,
-                votes: sg.votes,
-              }
+              status: sg.status,
+              matchId: sg.matchId,
+              // reveal payload
+              revealedSpyPlayerId: sg.revealedSpyPlayerId,
+              revealedWord: sg.revealedWord,
+              winner: sg.winner,
+              selectedPlayerId: sg.selectedPlayerId,
+              tie: sg.tie,
+              spyGuessedCorrectly: sg.spyGuessedCorrectly,
+              votes: sg.votes,
+            }
             : {
-                status: sg.status,
-                matchId: sg.matchId,
-                discussionEndsAt: sg.discussionEndsAt,
-                votingEndsAt: sg.votingEndsAt,
-                spyGuessEndsAt: sg.spyGuessEndsAt,
-                earlyVoteYesCount: Object.keys(sg.earlyVoteYes ?? {}).length,
-                voteCount: Object.keys(sg.votes ?? {}).length,
-              }
+              status: sg.status,
+              matchId: sg.matchId,
+              discussionEndsAt: sg.discussionEndsAt,
+              votingEndsAt: sg.votingEndsAt,
+              spyGuessEndsAt: sg.spyGuessEndsAt,
+              earlyVoteYesCount: Object.keys(sg.earlyVoteYes ?? {}).length,
+              voteCount: Object.keys(sg.votes ?? {}).length,
+            }
           : undefined,
         drawingGame: dg
           ? {
-              status: dg.status,
-              matchId: dg.matchId,
-              matchRound: dg.matchRound,
-              turnIndex: dg.turnIndex,
-              orderSize: dg.order.length,
-              drawerPlayerId: dg.drawerPlayerId,
-              wordHint: dg.wordHint,
-              endsAt: dg.endsAt,
-              revealEndsAt: dg.revealEndsAt,
-              leaderboardEndsAt: dg.leaderboardEndsAt,
-              solvedByPlayerId: dg.solvedByPlayerId,
-              scores: dg.scores,
-            }
+            status: dg.status,
+            matchId: dg.matchId,
+            matchRound: dg.matchRound,
+            turnIndex: dg.turnIndex,
+            orderSize: dg.order.length,
+            drawerPlayerId: dg.drawerPlayerId,
+            wordHint: dg.wordHint,
+            endsAt: dg.endsAt,
+            revealEndsAt: dg.revealEndsAt,
+            leaderboardEndsAt: dg.leaderboardEndsAt,
+            solvedByPlayerId: dg.solvedByPlayerId,
+            scores: dg.scores,
+          }
           : undefined,
         timers: {
           drawSecLeft,
@@ -438,7 +438,7 @@ export function initSocket(httpServer: HttpServer): Server {
               if (pid !== dg.drawerPlayerId) continue
               const lastWordTurn = (s.data as any).lastWordTurnSent as string | undefined
               if (lastWordTurn === turnKey) continue
-              ;(s.data as any).lastWordTurnSent = turnKey
+                ; (s.data as any).lastWordTurnSent = turnKey
               s.emit('game:drawing:word', { word: dg.word })
             }
           }
@@ -537,7 +537,7 @@ export function initSocket(httpServer: HttpServer): Server {
 
         joinedCode = code
         joinedPlayerId = playerId
-        ;(socket.data as any).playerId = playerId
+          ; (socket.data as any).playerId = playerId
 
         void socket.join(code)
         cb?.({ ok: true, room: { code, game: room.game }, player })

@@ -837,6 +837,15 @@ export default function GuessDrawingGame() {
             Quit room
           </Button>
         )}
+        {!lgUp && isOnline && roomCode && playerId ? (
+          <div className="ml-auto flex shrink-0 items-center">
+            <RoomVoiceDock
+              roomCode={roomCode}
+              myPlayerId={playerId}
+              players={voicePlayers}
+            />
+          </div>
+        ) : null}
       </div>
 
       {lgUp ? (
@@ -1115,19 +1124,11 @@ export default function GuessDrawingGame() {
 
       <MobileChatDock
         title="Guesses"
-        subtitle="Tap ↑ to read history · guesses only"
+        subtitle="Half screen — drag strip up to open; drag header up/down in chat"
         expanded={mobileGuessesOpen}
         onExpandedChange={setMobileGuessesOpen}
         scrollToBottomKey={guessesScrollKey}
-        endAccessory={
-          !lgUp && isOnline && roomCode && playerId ? (
-            <RoomVoiceDock
-              roomCode={roomCode}
-              myPlayerId={playerId}
-              players={voicePlayers}
-            />
-          ) : undefined
-        }
+        expandedSheet="half"
         messages={<div className="space-y-2">{guessesMessageList}</div>}
         composer={
           role === 'guesser' && !roundSolved && gamePhase === 'playing' ? (

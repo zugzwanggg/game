@@ -38,11 +38,12 @@ export default function GameRoom() {
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [matchmakingError, setMatchmakingError] = useState<string | null>(null)
 
-  const joinRandomRoom = async () => {
+  const joinRandomRoom = async (opts?: { identityReady?: boolean }) => {
     setMatchmakingError(null)
     if (!game) return
-    // Require either signed-in or explicit guest choice.
-    if (!principal) {
+    // Guest/sign-in must exist unless the caller just finished `guest()` (React state
+    // has not re-rendered yet, so `principal` would still be stale here).
+    if (!principal && !opts?.identityReady) {
       setAuthModalOpen(true)
       return
     }
@@ -98,8 +99,7 @@ export default function GameRoom() {
       onContinueGuest={(name) => {
         void (async () => {
           await guest({ displayName: name })
-          // After guest session is created, try again.
-          await joinRandomRoom()
+          await joinRandomRoom({ identityReady: true })
         })()
       }}
     />

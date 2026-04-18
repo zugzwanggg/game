@@ -1,7 +1,6 @@
 import { User } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { AuthChoiceModal } from '../components/auth/AuthChoiceModal'
 import Button from '../components/ui/Button'
 import { useAuth } from '../context/AuthProvider'
 import { apiFetch } from '../lib/api'
@@ -16,24 +15,9 @@ export default function JoinRoom() {
   const [nickname, setNickname] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [authModalOpen, setAuthModalOpen] = useState(false)
-
-  const ensureIdentity = async () => {
-    if (principal) return true
-    setAuthModalOpen(true)
-    return false
-  }
 
   return (
     <div className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-base px-4 pt-[max(0px,env(safe-area-inset-top))] pb-[max(0px,env(safe-area-inset-bottom))]">
-      <AuthChoiceModal
-        open={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-        defaultNickname={nickname}
-        onContinueGuest={(n) => {
-          void guest({ displayName: n })
-        }}
-      />
       <div
         className="glow-orb -left-20 -top-20 h-96 w-96"
         style={{ background: 'rgba(123,97,255,0.4)' }}
@@ -87,58 +71,72 @@ export default function JoinRoom() {
               void (async () => {
                 if (!code) return
                 setError(null)
-                if (!(await ensureIdentity())) return
+                const nick = nickname.trim().slice(0, 20)
+                if (!principal) {
+                  try {
+                    await guest({
+                      displayName: nick || undefined,
+                    })
+                  } catch (e: any) {
+                    setError(e?.data?.error ?? 'Could not start guest session')
+                    return
+                  }
+                }
                 setLoading(true)
                 try {
                   const socket = getSocket()
                   if (!socket.connected) socket.connect()
-                  socket.emit('room:join', { code, nickname }, (res: any) => {
-                    if (!res?.ok) {
-                      setError(res?.error ?? 'Failed to join')
-                      setLoading(false)
-                      return
-                    }
-                    void (async () => {
-                      try {
-                        const roomRes = await apiFetch<{
-                          room: { game?: string; matchActive?: boolean }
-                        }>(`/rooms/${code}`)
-                        const g = roomRes.room.game
-                        const gameKey =
-                          g === 'meme' ? 'meme' : 'drawing'
-                        addRecentRoom({
-                          code,
-                          game: gameKey,
-                          joinedAt: Date.now(),
-                          role: 'player',
-                        })
-                        if (
-                          roomRes.room.matchActive &&
-                          (gameKey === 'drawing' || gameKey === 'meme')
-                        ) {
-                          void navigate(playPathForRoom(code, gameKey), {
-                            replace: true,
-                          })
-                        } else {
-                          void navigate(
-                            `/room/${encodeURIComponent(code)}?game=${encodeURIComponent(gameKey)}`,
-                          )
-                        }
-                      } catch {
-                        addRecentRoom({
-                          code,
-                          game: 'drawing',
-                          joinedAt: Date.now(),
-                          role: 'player',
-                        })
-                        void navigate(
-                          `/room/${encodeURIComponent(code)}?game=drawing`,
-                        )
-                      } finally {
+                  socket.emit(
+                    'room:join',
+                    { code, nickname: nick || undefined },
+                    (res: any) => {
+                      if (!res?.ok) {
+                        setError(res?.error ?? 'Failed to join')
                         setLoading(false)
+                        return
                       }
-                    })()
-                  })
+                      void (async () => {
+                        try {
+                          const roomRes = await apiFetch<{
+                            room: { game?: string; matchActive?: boolean }
+                          }>(`/rooms/${code}`)
+                          const g = roomRes.room.game
+                          const gameKey =
+                            g === 'meme' ? 'meme' : 'drawing'
+                          addRecentRoom({
+                            code,
+                            game: gameKey,
+                            joinedAt: Date.now(),
+                            role: 'player',
+                          })
+                          if (
+                            roomRes.room.matchActive &&
+                            (gameKey === 'drawing' || gameKey === 'meme')
+                          ) {
+                            void navigate(playPathForRoom(code, gameKey), {
+                              replace: true,
+                            })
+                          } else {
+                            void navigate(
+                              `/room/${encodeURIComponent(code)}?game=${encodeURIComponent(gameKey)}`,
+                            )
+                          }
+                        } catch {
+                          addRecentRoom({
+                            code,
+                            game: 'drawing',
+                            joinedAt: Date.now(),
+                            role: 'player',
+                          })
+                          void navigate(
+                            `/room/${encodeURIComponent(code)}?game=drawing`,
+                          )
+                        } finally {
+                          setLoading(false)
+                        }
+                      })()
+                    },
+                  )
                 } catch (e: any) {
                   setError(e?.data?.error ?? 'Failed to join')
                   setLoading(false)
