@@ -4,6 +4,7 @@ import guessTheDrawingCover from '../assets/covers/guess_the_drawing_cover.png'
 import liarsRevolverCover from '../assets/covers/liars_revolver_cover.png'
 import mafiaCover from '../assets/covers/mafia_cover.png'
 import memeBattleCover from '../assets/covers/meme_battle_cover.png'
+import memoryArenaCover from '../assets/covers/memory_cover.png'
 import spyCover from '../assets/covers/spy_cover.png'
 
 export type GameDefinition = {
@@ -93,6 +94,7 @@ export const GAMES: Record<string, GameDefinition> = {
     description:
       'Tiles flash in order. Tap the same order. Wrong or out of time: you lose. Sequence grows each round.',
     icon: LayoutGrid,
+    coverImage: memoryArenaCover,
     glowColor: 'rgba(56, 189, 248, 0.28)',
     accentColor: '#38BDF8',
     players: '2-12 players',
