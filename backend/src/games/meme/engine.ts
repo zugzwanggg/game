@@ -1,4 +1,5 @@
 import type { RoomState } from '../../rooms/types.js'
+import { clearSpectatorFlagsForMatchStart } from '../../rooms/spectators.js'
 import { pickTwoPrompts, tieBreakIndex } from './prompts.js'
 
 export const MEME_CONTEXT_VOTE_SEC = Number(process.env.MEME_CONTEXT_VOTE_SEC ?? 45)
@@ -77,9 +78,7 @@ export function startMemeMatch(room: RoomState, t: number) {
   const m = room.memeGame
   if (!m || room.game !== 'meme') return
   if (room.players.length < 2) return
-  for (const p of room.players) {
-    p.spectator = false
-  }
+  clearSpectatorFlagsForMatchStart(room)
   m.matchId += 1
   m.round = 1
   m.scores = {}

@@ -22,7 +22,7 @@ export function useRoomMatchAbandoned(roomCode: string | null, gameId?: string) 
       const msg =
         typeof p?.message === 'string' && p.message.trim()
           ? p.message
-          : 'Everyone else left — the match was cancelled.'
+          : 'Everyone else left. Match cancelled.'
       toast.error(msg, { duration: 5000 })
       void navigate(gameId ? `/games/${gameId}` : '/games', { replace: true })
     }

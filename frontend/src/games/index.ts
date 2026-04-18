@@ -1,4 +1,4 @@
-import { Eye, ImageIcon, Pencil, Skull, Target, type LucideIcon } from 'lucide-react'
+import { Eye, ImageIcon, LayoutGrid, Pencil, Skull, Target, type LucideIcon } from 'lucide-react'
 
 import guessTheDrawingCover from '../assets/covers/guess_the_drawing_cover.png'
 import liarsRevolverCover from '../assets/covers/liars_revolver_cover.png'
@@ -30,7 +30,7 @@ export const GAMES: Record<string, GameDefinition> = {
     label: 'Guess the Drawing',
     tagline: 'Draw fast. Guess faster.',
     description:
-      'One player draws a secret word while everyone else races to guess it in real time. The faster you guess, the more points you earn.',
+      'One player draws a word; everyone else guesses in chat. Earlier correct guess scores higher.',
     icon: Pencil,
     coverImage: guessTheDrawingCover,
     glowColor: 'rgba(123, 97, 255, 0.3)',
@@ -43,9 +43,9 @@ export const GAMES: Record<string, GameDefinition> = {
   meme: {
     id: 'meme',
     label: 'Meme Battle',
-    tagline: 'May the funniest meme win.',
+    tagline: 'Pick a meme. Vote.',
     description:
-      'Everyone gets a prompt and picks a meme. The group votes for the funniest.',
+      'Prompts, then GIF picks. Vote each round.',
     icon: ImageIcon,
     coverImage: memeBattleCover,
     glowColor: 'rgba(0, 212, 170, 0.3)',
@@ -58,9 +58,9 @@ export const GAMES: Record<string, GameDefinition> = {
   spy: {
     id: 'spy',
     label: 'Spy',
-    tagline: 'Blend in. Find the word. Don’t get caught.',
+    tagline: 'Find the Spy.',
     description:
-      'One player is the Spy and does not know the secret word. Everyone else shares the word and gives hints without saying it. Vote to catch the Spy. On a tie, Spy wins. If caught, the Spy gets one guess.',
+      'Spy does not know the word. Others give hints and vote. Tie goes to Spy. Caught Spy gets one guess.',
     icon: Eye,
     coverImage: spyCover,
     glowColor: 'rgba(255, 184, 0, 0.25)',
@@ -75,7 +75,7 @@ export const GAMES: Record<string, GameDefinition> = {
     label: "Liar's Revolver",
     tagline: 'Bluff, call, survive.',
     description:
-      'Play cards face down and say how many of which rank you claim (rank and count are yours to invent). Others can call your bluff. Wrong player spins the cylinder. Last one standing wins.',
+      'Play face-down cards and claim a rank. Others can call bluff. Wrong player spins. Last one standing wins.',
     icon: Target,
     coverImage: liarsRevolverCover,
     beta: true,
@@ -86,12 +86,26 @@ export const GAMES: Record<string, GameDefinition> = {
     duration: '~10 min',
     tags: ['bluffing', 'party', 'cards'],
   },
+  memory: {
+    id: 'memory',
+    label: 'Memory Arena',
+    tagline: 'Repeat the pattern.',
+    description:
+      'Tiles flash in order. Tap the same order. Wrong or out of time: you lose. Sequence grows each round.',
+    icon: LayoutGrid,
+    glowColor: 'rgba(56, 189, 248, 0.28)',
+    accentColor: '#38BDF8',
+    players: '2-12 players',
+    maxPlayers: 12,
+    duration: '~5 min',
+    tags: ['memory', 'reaction', 'party'],
+  },
   mafia: {
     id: 'mafia',
     label: 'Mafia',
-    tagline: 'Trust no one. Survive the night.',
+    tagline: 'Night and day.',
     description:
-      'Mafia kills at night; town votes by day. If Mafia matches town in numbers, Mafia wins.',
+      'Mafia kills at night; town votes by day. Mafia wins when equal to town.',
     icon: Skull,
     coverImage: mafiaCover,
     glowColor: 'rgba(244, 63, 94, 0.25)',

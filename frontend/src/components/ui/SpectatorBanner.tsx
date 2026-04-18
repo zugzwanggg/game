@@ -7,8 +7,7 @@ export function SpectatorBanner({ className = '' }: { className?: string }) {
     >
       <p className="font-medium">Spectating</p>
       <p className="mt-0.5 text-[10px] opacity-90">
-        You joined during an active match. You can watch, but you can’t play or chat until the next match
-        starts (when the room returns to the lobby or the host starts a new round).
+        You joined mid-match. Watch only until the host starts the next match.
       </p>
     </div>
   )

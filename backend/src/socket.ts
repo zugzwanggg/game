@@ -4,6 +4,7 @@ import crypto from 'node:crypto'
 import { verifyToken } from './auth/token.js'
 import { AUTH_COOKIE_NAME, getAuthSecret } from './auth/middleware.js'
 import { applyPlayerLeftRoom, deleteRoom, getRoom, tickRoomTimers, touchRoom } from './rooms/store.js'
+import { clearSpectatorFlagsForMatchStart } from './rooms/spectators.js'
 import type { RoomPlayer, RoomState } from './rooms/types.js'
 import { normalizeGuess, pickRandomWord, toHint } from './games/drawing/words.js'
 import { startMemeMatch } from './games/meme/engine.js'
@@ -30,6 +31,12 @@ import {
   tryCallLiar,
   tryPlayCards,
 } from './games/liar/engine.js'
+import {
+  MEMORY_MAX_PLAYERS,
+  MEMORY_MIN_PLAYERS,
+  startMemoryMatch,
+  tryMemoryTap,
+} from './games/memory/engine.js'
 import { getCorsOrigins } from './corsOrigins.js'
 
 let io: Server | null = null
@@ -39,6 +46,7 @@ const revealedTurnByRoom = new Map<string, string>()
 const startedSpyByRoom = new Map<string, number>()
 const startedMafiaByRoom = new Map<string, number>()
 const startedLiarByRoom = new Map<string, number>()
+const startedMemoryByRoom = new Map<string, number>()
 
 function roomIsInActiveMatch(room: RoomState): boolean {
   switch (room.game) {
@@ -52,6 +60,8 @@ function roomIsInActiveMatch(room: RoomState): boolean {
       return Boolean(room.liarGame && room.liarGame.status !== 'lobby')
     case 'meme':
       return Boolean(room.memeGame && room.memeGame.status !== 'lobby')
+    case 'memory':
+      return Boolean(room.memoryGame && room.memoryGame.status !== 'lobby')
     default:
       return false
   }
@@ -95,6 +105,7 @@ export function initSocket(httpServer: HttpServer): Server {
     startedSpyByRoom.delete(code)
     startedMafiaByRoom.delete(code)
     startedLiarByRoom.delete(code)
+    startedMemoryByRoom.delete(code)
     return true
   }
 
@@ -291,6 +302,20 @@ export function initSocket(httpServer: HttpServer): Server {
           ? Math.max(0, Math.ceil((lg.bluffEndsAt - now) / 1000))
           : 0
 
+      const memg = room.memoryGame
+      const memoryPlaybackSecLeft =
+        memg?.status === 'playback' && memg.phaseEndsAt != null
+          ? Math.max(0, Math.ceil((memg.phaseEndsAt - now) / 1000))
+          : 0
+      const memoryInputSecLeft =
+        memg?.status === 'input' && memg.inputEndsAt != null
+          ? Math.max(0, Math.ceil((memg.inputEndsAt - now) / 1000))
+          : 0
+      const memoryCountdownSecLeft =
+        memg?.status === 'countdown' && memg.phaseEndsAt != null
+          ? Math.max(0, Math.ceil((memg.phaseEndsAt - now) / 1000))
+          : 0
+
       const mafiaGamePublic =
         mfg && room.game === 'mafia'
           ? mfg.status === 'results'
@@ -393,6 +418,24 @@ export function initSocket(httpServer: HttpServer): Server {
           }
           : undefined
 
+      const memoryGamePublic =
+        memg && room.game === 'memory'
+          ? {
+            status: memg.status,
+            matchId: memg.matchId,
+            countdownReason: memg.countdownReason,
+            round: memg.round,
+            sequenceLength: memg.sequence.length,
+            alive: { ...memg.alive },
+            highlightTile: memg.status === 'playback' ? memg.highlightTile : null,
+            phaseEndsAt: memg.phaseEndsAt,
+            inputEndsAt: memg.inputEndsAt,
+            inputProgress: { ...memg.inputProgress },
+            winnerId: memg.winnerId,
+            lastEliminatedPlayerId: memg.lastEliminatedPlayerId,
+          }
+          : undefined
+
       const roomStateBase = {
         code: room.code,
         game: room.game,
@@ -404,6 +447,7 @@ export function initSocket(httpServer: HttpServer): Server {
         memeGame: mg,
         mafiaGame: mafiaGamePublic,
         liarGame: liarGamePublic,
+        memoryGame: memoryGamePublic,
         spyGame: sg
           ? sg.status === 'reveal'
             ? {
@@ -459,6 +503,9 @@ export function initSocket(httpServer: HttpServer): Server {
           mafiaVoteSecLeft,
           mafiaResultsSecLeft,
           liarBluffSecLeft,
+          memoryPlaybackSecLeft,
+          memoryInputSecLeft,
+          memoryCountdownSecLeft,
         },
       }
 
@@ -550,6 +597,14 @@ export function initSocket(httpServer: HttpServer): Server {
           const pid = (s.data as any).playerId as string | undefined
           if (!pid) continue
           s.emit('game:liar:hand', { cards: lg.hands[pid] ?? [] })
+        }
+      }
+
+      if (room.game === 'memory' && memg && memg.status !== 'lobby') {
+        const last = startedMemoryByRoom.get(code) ?? 0
+        if (memg.matchId !== last) {
+          startedMemoryByRoom.set(code, memg.matchId)
+          io!.to(code).emit('game:memory:started', { code, game: 'memory' as const })
         }
       }
 
@@ -690,9 +745,7 @@ export function initSocket(httpServer: HttpServer): Server {
       const players = [...room.players].sort((a, b) => a.joinedAt - b.joinedAt)
       if (players.length < 2) return
 
-      for (const p of room.players) {
-        p.spectator = false
-      }
+      clearSpectatorFlagsForMatchStart(room)
 
       const g = room.drawingGame
       // Start / restart the match from round 1.
@@ -842,6 +895,36 @@ export function initSocket(httpServer: HttpServer): Server {
       io!.to(joinedCode).emit('chat:clear')
       io!.to(joinedCode).emit('game:liar:started', { code: joinedCode, game: 'liar' as const })
       emitRoomState(joinedCode)
+    })
+
+    socket.on('game:memory:start', () => {
+      if (!joinedCode) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'memory' || !room.memoryGame) return
+      const principal = (socket.data as any).principal as
+        | { kind: 'user' | 'guest'; id: string }
+        | undefined
+      if (!principal || principal.kind !== 'user' || principal.id !== room.createdByUserId) return
+      if (room.players.length < MEMORY_MIN_PLAYERS || room.players.length > MEMORY_MAX_PLAYERS) return
+      room.chat = []
+      if (!startMemoryMatch(room, Date.now())) return
+      touchRoom(joinedCode)
+      io!.to(joinedCode).emit('chat:clear')
+      io!.to(joinedCode).emit('game:memory:started', { code: joinedCode, game: 'memory' as const })
+      emitRoomState(joinedCode)
+    })
+
+    socket.on('game:memory:tap', (payload: { tileIndex?: number }) => {
+      if (!joinedCode || !joinedPlayerId) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'memory' || !room.memoryGame) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
+      const tileIndex = Number(payload?.tileIndex)
+      if (!Number.isFinite(tileIndex)) return
+      if (tryMemoryTap(room, joinedPlayerId, Math.floor(tileIndex), Date.now())) {
+        touchRoom(joinedCode)
+        emitRoomState(joinedCode)
+      }
     })
 
     socket.on(
@@ -1089,6 +1172,7 @@ export function initSocket(httpServer: HttpServer): Server {
           startedSpyByRoom.delete(code)
           startedMafiaByRoom.delete(code)
           startedLiarByRoom.delete(code)
+          startedMemoryByRoom.delete(code)
         } else if (!dissolveRoomIfOnlyPlayerLeftDuringMatch(code)) {
           applyPlayerLeftRoom(room)
           touchRoom(code)
@@ -1278,6 +1362,7 @@ export function initSocket(httpServer: HttpServer): Server {
         startedSpyByRoom.delete(code)
         startedMafiaByRoom.delete(code)
         startedLiarByRoom.delete(code)
+        startedMemoryByRoom.delete(code)
       } else if (!dissolveRoomIfOnlyPlayerLeftDuringMatch(code)) {
         applyPlayerLeftRoom(room)
         touchRoom(code)

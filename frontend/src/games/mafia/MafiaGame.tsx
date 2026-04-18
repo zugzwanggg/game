@@ -817,9 +817,8 @@ export default function MafiaGame() {
                 </div>
               </div>
               <p className="shrink-0 text-sm text-muted">
-                Chat is closed at night — no one can type until morning. Mafia: agree on a kill (vote first,
-                then you can skip). Doctor & Detective: use your actions or tap Skip night. The night only ends
-                early when every player with a night role has agreed to skip.
+                Night: chat off. Mafia votes a kill; doctor and detective act or skip. Night ends when those roles
+                finish.
               </p>
 
               {role?.role === 'mafia' && imAlive && (
@@ -1371,7 +1370,7 @@ export default function MafiaGame() {
         composer={
           isSpectator ? (
             <div className="rounded-xl border border-border bg-base px-2 py-2 text-center text-[10px] leading-snug text-muted">
-              Spectating — chat unlocks when the next match starts.
+              Spectating. Chat when the next match starts.
             </div>
           ) : (
             <form className="flex w-full gap-2" onSubmit={sendChat}>

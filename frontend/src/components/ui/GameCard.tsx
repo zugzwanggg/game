@@ -1,4 +1,4 @@
-import { ArrowRight, Clock, Users } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { GameCover } from '../game/GameCover'
 import type { GameDefinition } from '../../games'
@@ -31,16 +31,9 @@ export default function GameCard({ game }: GameCardProps) {
         </div>
         <p className="mb-4 text-sm leading-relaxed text-muted">{game.tagline}</p>
 
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex items-center gap-1.5 text-xs text-muted">
-            <Users size={12} />
-            {game.players}
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted">
-            <Clock size={12} />
-            {game.duration}
-          </div>
-        </div>
+        <p className="mb-4 text-xs text-muted">
+          {game.players} · {game.duration}
+        </p>
 
         <div className="mb-5 flex flex-wrap gap-1.5">
           {game.tags.map((tag) => (

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import type { MafiaRole, RoomState } from '../../rooms/types.js'
+import { clearSpectatorFlagsForMatchStart } from '../../rooms/spectators.js'
 
 export const MAFIA_MIN = 5
 export const MAFIA_MAX = 12
@@ -64,9 +65,7 @@ export function startMafiaMatch(room: RoomState, t: number) {
   }
   if (g.status !== 'lobby') return
 
-  for (const p of room.players) {
-    p.spectator = false
-  }
+  clearSpectatorFlagsForMatchStart(room)
 
   const ids = room.players.map((p) => p.id)
   g.matchId += 1

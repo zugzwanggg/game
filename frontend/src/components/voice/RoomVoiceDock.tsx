@@ -65,7 +65,7 @@ export function RoomVoiceDock({
               ? 'Unmute microphone'
               : 'Mute microphone'
             : status === 'error'
-              ? 'Voice error — click to turn off'
+              ? 'Voice error. Click to turn off.'
               : 'Room voice'
 
   return (

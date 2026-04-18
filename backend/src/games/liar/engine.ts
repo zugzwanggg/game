@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import type { RoomState } from '../../rooms/types.js'
+import { clearSpectatorFlagsForMatchStart } from '../../rooms/spectators.js'
 import type { LiarCard, LiarGameState, LiarRank, LiarRevolver } from './types.js'
 import { RANK_ORDER } from './types.js'
 
@@ -120,9 +121,7 @@ export function startLiarMatch(room: RoomState, now: number) {
   const players = [...room.players].sort((a, b) => a.joinedAt - b.joinedAt)
   if (players.length < LIAR_MIN_PLAYERS || players.length > LIAR_MAX_PLAYERS) return
 
-  for (const p of room.players) {
-    p.spectator = false
-  }
+  clearSpectatorFlagsForMatchStart(room)
 
   g.matchId += 1
   g.status = 'playing'

@@ -24,6 +24,10 @@ function matchActive(room: RoomState): boolean {
     const l = room.liarGame
     return l != null && l.status !== 'lobby'
   }
+  if (room.game === 'memory') {
+    const m = room.memoryGame
+    return m != null && m.status !== 'lobby'
+  }
   return false
 }
 

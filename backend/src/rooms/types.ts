@@ -1,6 +1,6 @@
 import type { LiarGameState } from '../games/liar/types.js'
 
-export type GameKey = 'drawing' | 'meme' | 'spy' | 'mafia' | 'liar'
+export type GameKey = 'drawing' | 'meme' | 'spy' | 'mafia' | 'liar' | 'memory'
 
 export type MafiaRole = 'mafia' | 'town' | 'doctor' | 'detective'
 
@@ -103,6 +103,24 @@ export type RoomState = {
     spyGuessedCorrectly: boolean | null
   }
   liarGame?: LiarGameState
+  /** Simon-style sequence memory; server holds full sequence. */
+  memoryGame?: {
+    matchId: number
+    status: 'lobby' | 'countdown' | 'playback' | 'input' | 'winner'
+    /** Set when `status === 'countdown'`. */
+    countdownReason: 'match_start' | 'next_round' | null
+    round: number
+    sequence: number[]
+    alive: Record<string, boolean>
+    highlightTile: number | null
+    playbackStep: number
+    playbackPhase: 'show' | 'gap' | null
+    phaseEndsAt: number | null
+    inputEndsAt: number | null
+    inputProgress: Record<string, number>
+    winnerId: string | null
+    lastEliminatedPlayerId: string | null
+  }
   mafiaGame?: {
     matchId: number
     round: number

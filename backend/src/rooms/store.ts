@@ -5,6 +5,8 @@ import { MAX_MEME_ROUNDS, tickMemeGame } from '../games/meme/engine.js'
 import { tickSpyGame, SPY_MIN_PLAYERS } from '../games/spy/engine.js'
 import { tickMafiaGame, pruneMafiaForPlayers, MAFIA_MIN } from '../games/mafia/engine.js'
 import { tickLiarGame, pruneLiarForPlayers } from '../games/liar/engine.js'
+import { tickMemoryGame, pruneMemoryForPlayers } from '../games/memory/engine.js'
+import { clearSpectatorFlagsForMatchStart } from './spectators.js'
 
 function resetDrawingLobby(g: NonNullable<RoomState['drawingGame']>, room: RoomState) {
   g.status = 'lobby'
@@ -225,6 +227,10 @@ export function applyPlayerLeftRoom(room: RoomState) {
       room.spyGame.status = 'lobby'
     }
   }
+
+  if (room.game === 'memory' && room.memoryGame) {
+    pruneMemoryForPlayers(room)
+  }
 }
 
 const ROOM_CODE_LEN = 6
@@ -375,6 +381,25 @@ export function createRoom(args: {
             lastAnnouncement: null,
           }
         : undefined,
+    memoryGame:
+      args.game === 'memory'
+        ? {
+            matchId: 0,
+            status: 'lobby',
+            countdownReason: null,
+            round: 1,
+            sequence: [],
+            alive: {},
+            highlightTile: null,
+            playbackStep: 0,
+            playbackPhase: null,
+            phaseEndsAt: null,
+            inputEndsAt: null,
+            inputProgress: {},
+            winnerId: null,
+            lastEliminatedPlayerId: null,
+          }
+        : undefined,
     round: {
       phase: 'drawing',
       endsAt: t + DRAW_SEC * 1000,
@@ -447,6 +472,11 @@ export function tickRoomTimers(code: string) {
 
   if (room.game === 'liar' && room.liarGame) {
     tickLiarGame(room, t)
+    return
+  }
+
+  if (room.game === 'memory' && room.memoryGame && room.memoryGame.status !== 'lobby') {
+    tickMemoryGame(room, t)
     return
   }
 
@@ -572,9 +602,7 @@ export function tickRoomTimers(code: string) {
       g.order = players.map((p) => p.id)
       g.matchRosterIds = [...g.order]
       g.scores = {}
-      for (const p of room.players) {
-        p.spectator = false
-      }
+      clearSpectatorFlagsForMatchStart(room)
       g.drawerPlayerId = g.order[0]!
       const w = pickRandomWord()
       g.word = w

@@ -115,3 +115,24 @@ export function playLiarBangSfx(): void {
   beep(90, 220, 0.2, 'sawtooth')
   window.setTimeout(() => beep(55, 350, 0.18, 'square'), 40)
 }
+
+/** Memory Arena: one pentatonic tone per tile (0–8). */
+const MEMORY_TILE_FREQ: readonly number[] = [
+  261.63, 293.66, 329.63, 349.23, 392.0, 440.0, 493.88, 523.25, 587.33,
+]
+
+export function playMemoryTileSfx(tileIndex: number): void {
+  const i = Math.max(0, Math.min(MEMORY_TILE_FREQ.length - 1, Math.floor(tileIndex)))
+  beep(MEMORY_TILE_FREQ[i]!, 90, 0.12, 'sine')
+}
+
+export function playMemoryErrorSfx(): void {
+  beep(180, 110, 0.14, 'sawtooth')
+  window.setTimeout(() => beep(120, 140, 0.12, 'square'), 60)
+}
+
+export function playMemoryWinSfx(): void {
+  beep(523.25, 70, 0.11)
+  window.setTimeout(() => beep(659.25, 80, 0.12), 75)
+  window.setTimeout(() => beep(783.99, 120, 0.13), 160)
+}

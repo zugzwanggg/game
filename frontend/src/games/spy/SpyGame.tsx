@@ -530,7 +530,7 @@ export default function SpyGame() {
             <div className="mb-4 rounded-2xl border border-border bg-base p-4">
               <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">Your role</div>
               {role?.role === 'spectator' || isSpectator ? (
-                <div className="text-lg font-semibold text-text">Spectator — watch only until the next match.</div>
+                <div className="text-lg font-semibold text-text">Spectator. Watch until the next match.</div>
               ) : role?.role === 'spy' ? (
                 <div className="text-lg font-semibold text-text">You are the Spy.</div>
               ) : role?.role === 'agent' ? (
@@ -734,7 +734,7 @@ export default function SpyGame() {
         composer={
           isSpectator ? (
             <div className="rounded-xl border border-border bg-base px-2 py-2 text-center text-[10px] leading-snug text-muted">
-              Spectating — chat unlocks when the next match starts.
+              Spectating. Chat when the next match starts.
             </div>
           ) : (
             <form className="flex w-full gap-2" onSubmit={sendChat}>

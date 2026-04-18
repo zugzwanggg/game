@@ -1,4 +1,5 @@
 import type { RoomState } from '../../rooms/types.js'
+import { clearSpectatorFlagsForMatchStart } from '../../rooms/spectators.js'
 import { normalizeSpyGuess, pickRandomSpyWord } from './words.js'
 
 export const SPY_MIN_PLAYERS = 3
@@ -90,9 +91,7 @@ export function startSpyMatch(room: RoomState, t: number) {
   if (room.players.length < SPY_MIN_PLAYERS) return
   if (room.players.length > SPY_MAX_PLAYERS) return
 
-  for (const p of room.players) {
-    p.spectator = false
-  }
+  clearSpectatorFlagsForMatchStart(room)
 
   s.matchId += 1
   s.status = 'discussion'

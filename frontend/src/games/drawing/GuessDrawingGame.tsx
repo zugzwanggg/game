@@ -1164,7 +1164,7 @@ export default function GuessDrawingGame() {
               ) : (
                 <p className="text-center text-xs text-zinc-500">
                   {isSpectator
-                    ? 'Spectating — you can guess when the next match starts.'
+                    ? 'Spectating. You can guess after the next match starts.'
                     : gamePhase === 'leaderboard'
                       ? 'Check the leaderboard, then tap continue for the next round.'
                       : role === 'drawer' && drawerTurnPhase === 'reveal'
@@ -1211,14 +1211,14 @@ export default function GuessDrawingGame() {
           ) : (
             <div className="rounded-xl border border-border bg-base px-2 py-2 text-center text-[10px] leading-snug text-muted">
               {isSpectator
-                ? 'Spectating — you can guess when the next match starts.'
+                ? 'Spectating. Guessing opens after the next match starts.'
                 : gamePhase === 'leaderboard'
-                  ? 'Leaderboard open — use desktop panel or expand to read.'
+                  ? 'Leaderboard open. Use desktop chat or expand.'
                   : role === 'drawer' && drawerTurnPhase === 'reveal'
                     ? 'Drawer: word on canvas. Guessing switches soon.'
                     : role === 'drawer'
                       ? 'Switch to Guessing to type, or use another device as guesser.'
-                      : 'Round over — expand to read chat.'}
+                      : 'Round over. Expand to read chat.'}
             </div>
           )
         }
