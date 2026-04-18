@@ -1,6 +1,8 @@
 import type { LiarGameState } from '../games/liar/types.js'
 
-export type GameKey = 'drawing' | 'meme' | 'spy' | 'mafia' | 'liar' | 'memory'
+import type { WhoAmIAssignment, WhoAmIDifficultyTier } from '../games/whoami/types.js'
+
+export type GameKey = 'drawing' | 'meme' | 'spy' | 'mafia' | 'liar' | 'memory' | 'whoami'
 
 export type MafiaRole = 'mafia' | 'town' | 'doctor' | 'detective'
 
@@ -104,6 +106,18 @@ export type RoomState = {
   }
   liarGame?: LiarGameState
   /** Simon-style sequence memory; server holds full sequence. */
+  whoamiGame?: {
+    matchId: number
+    status: 'lobby' | 'playing'
+    startedAt: number | null
+    /** Host picks in the play view before start. */
+    categoryFilter: 'character' | 'person' | null
+    /** Host picks in the play view before start (`any` = all difficulties). */
+    difficultyFilter: WhoAmIDifficultyTier | null
+    /** Server-only full map; never broadcast to clients. */
+    assignments: Record<string, WhoAmIAssignment>
+    solved: Record<string, boolean>
+  }
   memoryGame?: {
     matchId: number
     status: 'lobby' | 'countdown' | 'playback' | 'input' | 'winner'

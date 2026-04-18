@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "nodemon",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "seed:game-items": "tsx src/scripts/seed-game-items.ts",
+    "seed:wikidata-characters": "tsx src/scripts/seed-wikidata-characters.ts"
   },
   "engines": {
     "node": ">=20"

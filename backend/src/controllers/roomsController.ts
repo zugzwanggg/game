@@ -28,6 +28,10 @@ function matchActive(room: RoomState): boolean {
     const m = room.memoryGame
     return m != null && m.status !== 'lobby'
   }
+  if (room.game === 'whoami') {
+    const w = room.whoamiGame
+    return w != null && w.status !== 'lobby'
+  }
   return false
 }
 
@@ -92,6 +96,12 @@ export function getRoomHandler(req: AuthedRequest, res: Response) {
         displayName: p.displayName,
       })),
       round: room.round,
+      ...(room.game === 'whoami' && room.whoamiGame
+        ? {
+            whoamiCategoryFilter: room.whoamiGame.categoryFilter,
+            whoamiDifficultyFilter: room.whoamiGame.difficultyFilter,
+          }
+        : {}),
     },
   })
 }

@@ -37,6 +37,16 @@ import {
   startMemoryMatch,
   tryMemoryTap,
 } from './games/memory/engine.js'
+import {
+  pickItemsForPlayerCount,
+  startWhoAmIMatch,
+  toItemInputsFromRows,
+  tryWhoAmIGuess,
+  WHOAMI_MAX_PLAYERS,
+  WHOAMI_MIN_PLAYERS,
+} from './games/whoami/engine.js'
+import { fetchRandomGameItems } from './db/gameItems.js'
+import { whoAmILargeImageUrl } from './games/whoami/imageUrl.js'
 import { getCorsOrigins } from './corsOrigins.js'
 
 let io: Server | null = null
@@ -47,6 +57,7 @@ const startedSpyByRoom = new Map<string, number>()
 const startedMafiaByRoom = new Map<string, number>()
 const startedLiarByRoom = new Map<string, number>()
 const startedMemoryByRoom = new Map<string, number>()
+const startedWhoAmIByRoom = new Map<string, number>()
 
 function roomIsInActiveMatch(room: RoomState): boolean {
   switch (room.game) {
@@ -62,6 +73,8 @@ function roomIsInActiveMatch(room: RoomState): boolean {
       return Boolean(room.memeGame && room.memeGame.status !== 'lobby')
     case 'memory':
       return Boolean(room.memoryGame && room.memoryGame.status !== 'lobby')
+    case 'whoami':
+      return Boolean(room.whoamiGame && room.whoamiGame.status !== 'lobby')
     default:
       return false
   }
@@ -106,6 +119,7 @@ export function initSocket(httpServer: HttpServer): Server {
     startedMafiaByRoom.delete(code)
     startedLiarByRoom.delete(code)
     startedMemoryByRoom.delete(code)
+    startedWhoAmIByRoom.delete(code)
     return true
   }
 
@@ -217,6 +231,51 @@ export function initSocket(httpServer: HttpServer): Server {
         const pid = (s.data as any).playerId as string | undefined
         if (!pid) continue
         emitMafiaRole(room, pid, s)
+      }
+    }
+
+    const emitWhoAmIView = (room: RoomState, sock: any, opts?: { force?: boolean }) => {
+      const wg = room.whoamiGame
+      if (!wg || wg.status === 'lobby' || room.game !== 'whoami' || !wg.matchId) return
+      const pid = (sock.data as any).playerId as string | undefined
+      if (!pid) return
+      const last = (sock.data as any).lastWhoAmIMatchIdSent as number | undefined
+      if (!opts?.force && last === wg.matchId) return
+        ; (sock.data as any).lastWhoAmIMatchIdSent = wg.matchId
+
+      const pl = room.players.find((p) => p.id === pid)
+      const asg = wg.assignments
+
+      const cardFor = (playerId: string) => {
+        const a = asg[playerId]
+        return a
+          ? { playerId, name: a.name, imageUrl: whoAmILargeImageUrl(a.imageUrl) }
+          : null
+      }
+
+      if (pl?.spectator) {
+        const others = room.players
+          .filter((p) => !p.spectator)
+          .map((p) => cardFor(p.id))
+          .filter(Boolean) as { playerId: string; name: string; imageUrl: string | null }[]
+        sock.emit('game:whoami:view', { matchId: wg.matchId, mode: 'spectator' as const, others })
+        return
+      }
+
+      const others = room.players
+        .filter((p) => !p.spectator && p.id !== pid)
+        .map((p) => cardFor(p.id))
+        .filter(Boolean) as { playerId: string; name: string; imageUrl: string | null }[]
+
+      sock.emit('game:whoami:view', { matchId: wg.matchId, mode: 'player' as const, others })
+    }
+
+    const emitWhoAmIViewsToRoom = (code: string, room: RoomState) => {
+      const wg = room.whoamiGame
+      if (!wg || wg.status === 'lobby' || room.game !== 'whoami') return
+      for (const s of io!.sockets.sockets.values()) {
+        if (!s.rooms?.has(code)) continue
+        emitWhoAmIView(room, s)
       }
     }
 
@@ -436,6 +495,18 @@ export function initSocket(httpServer: HttpServer): Server {
           }
           : undefined
 
+      const wmg = room.whoamiGame
+      const whoamiGamePublic =
+        wmg && room.game === 'whoami'
+          ? {
+            status: wmg.status,
+            matchId: wmg.matchId,
+            categoryFilter: wmg.categoryFilter,
+            difficultyFilter: wmg.difficultyFilter,
+            solved: { ...wmg.solved },
+          }
+          : undefined
+
       const roomStateBase = {
         code: room.code,
         game: room.game,
@@ -448,6 +519,7 @@ export function initSocket(httpServer: HttpServer): Server {
         mafiaGame: mafiaGamePublic,
         liarGame: liarGamePublic,
         memoryGame: memoryGamePublic,
+        whoamiGame: whoamiGamePublic,
         spyGame: sg
           ? sg.status === 'reveal'
             ? {
@@ -608,6 +680,15 @@ export function initSocket(httpServer: HttpServer): Server {
         }
       }
 
+      if (room.game === 'whoami' && wmg && wmg.status !== 'lobby') {
+        const last = startedWhoAmIByRoom.get(code) ?? 0
+        if (wmg.matchId !== last) {
+          startedWhoAmIByRoom.set(code, wmg.matchId)
+          io!.to(code).emit('game:whoami:started', { code, game: 'whoami' as const })
+        }
+        emitWhoAmIViewsToRoom(code, room)
+      }
+
       if (room.game === 'mafia' && mfg && mfg.status === 'night') {
         const docId = Object.entries(mfg.roles).find(([, r]) => r === 'doctor')?.[0]
         if (docId && mfg.alive[docId]) {
@@ -729,6 +810,15 @@ export function initSocket(httpServer: HttpServer): Server {
           ) {
             socket.emit('game:liar:hand', { cards: room.liarGame.hands[playerId] ?? [] })
           }
+        }
+
+        if (
+          room.game === 'whoami' &&
+          room.whoamiGame &&
+          room.whoamiGame.status !== 'lobby' &&
+          room.whoamiGame.matchId
+        ) {
+          emitWhoAmIView(room, socket as any, { force: true })
         }
       },
     )
@@ -925,6 +1015,108 @@ export function initSocket(httpServer: HttpServer): Server {
         touchRoom(joinedCode)
         emitRoomState(joinedCode)
       }
+    })
+
+    socket.on('game:whoami:set_config', (payload: { category?: string; difficulty?: string }) => {
+      if (!joinedCode) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'whoami' || !room.whoamiGame) return
+      if (room.whoamiGame.status !== 'lobby') return
+      const principal = (socket.data as any).principal as
+        | { kind: 'user' | 'guest'; id: string }
+        | undefined
+      if (!principal || principal.kind !== 'user' || principal.id !== room.createdByUserId) return
+      let changed = false
+      const c = String(payload?.category ?? '').trim()
+      if (c === 'person' || c === 'character') {
+        room.whoamiGame.categoryFilter = c
+        changed = true
+      }
+      const d = String(payload?.difficulty ?? '').trim()
+      if (d === 'easy' || d === 'medium' || d === 'hard' || d === 'any') {
+        room.whoamiGame.difficultyFilter = d
+        changed = true
+      }
+      if (!changed) return
+      touchRoom(joinedCode)
+      emitRoomState(joinedCode)
+    })
+
+    socket.on('game:whoami:enter_play', () => {
+      if (!joinedCode) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'whoami') return
+      const principal = (socket.data as any).principal as
+        | { kind: 'user' | 'guest'; id: string }
+        | undefined
+      if (!principal || principal.kind !== 'user' || principal.id !== room.createdByUserId) return
+      touchRoom(joinedCode)
+      io!.to(joinedCode).emit('game:whoami:enter_play', { code: joinedCode })
+    })
+
+    socket.on('game:whoami:start', () => {
+      if (!joinedCode) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'whoami' || !room.whoamiGame) return
+      const principal = (socket.data as any).principal as
+        | { kind: 'user' | 'guest'; id: string }
+        | undefined
+      if (!principal || principal.kind !== 'user' || principal.id !== room.createdByUserId) return
+      if (
+        room.players.length < WHOAMI_MIN_PLAYERS ||
+        room.players.length > WHOAMI_MAX_PLAYERS
+      )
+        return
+      const itemType = room.whoamiGame.categoryFilter
+      if (itemType !== 'character' && itemType !== 'person') return
+      const diff = room.whoamiGame.difficultyFilter
+      if (diff !== 'easy' && diff !== 'medium' && diff !== 'hard' && diff !== 'any') return
+
+      void (async () => {
+        const code = joinedCode!
+        const r = getRoom(code)
+        if (!r || r.game !== 'whoami' || !r.whoamiGame) return
+        const filter = r.whoamiGame.categoryFilter
+        if (filter !== 'character' && filter !== 'person') return
+        const difficulty = r.whoamiGame.difficultyFilter
+        if (difficulty !== 'easy' && difficulty !== 'medium' && difficulty !== 'hard' && difficulty !== 'any')
+          return
+        let dbRows: Awaited<ReturnType<typeof fetchRandomGameItems>> = []
+        try {
+          dbRows = await fetchRandomGameItems(200, filter, difficulty)
+        } catch {
+          dbRows = []
+        }
+        const fromDb = toItemInputsFromRows(dbRows)
+        const picked = pickItemsForPlayerCount(fromDb, r.players.length, filter, difficulty)
+        r.chat = []
+        if (!startWhoAmIMatch(r, Date.now(), picked)) return
+        touchRoom(code)
+        io!.to(code).emit('chat:clear')
+        emitRoomState(code)
+      })()
+    })
+
+    socket.on('game:whoami:guess', (payload: { guess?: string }) => {
+      if (!joinedCode || !joinedPlayerId) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'whoami' || !room.whoamiGame) return
+      if (playerIsSpectator(room, joinedPlayerId)) return
+      const guess = String(payload?.guess ?? '').trim()
+      const res = tryWhoAmIGuess(room, joinedPlayerId, guess, Date.now())
+      if (!res.ok) return
+      touchRoom(joinedCode)
+      emitRoomState(joinedCode)
+    })
+
+    socket.on('game:whoami:view:request', () => {
+      if (!joinedCode) return
+      const room = getRoom(joinedCode)
+      if (!room || room.game !== 'whoami' || !room.whoamiGame) return
+      if (room.whoamiGame.status === 'lobby') return
+      const pid = joinedPlayerId ?? ((socket.data as any).playerId as string | undefined)
+      if (!pid) return
+      emitWhoAmIView(room, socket as any, { force: true })
     })
 
     socket.on(
@@ -1173,6 +1365,7 @@ export function initSocket(httpServer: HttpServer): Server {
           startedMafiaByRoom.delete(code)
           startedLiarByRoom.delete(code)
           startedMemoryByRoom.delete(code)
+          startedWhoAmIByRoom.delete(code)
         } else if (!dissolveRoomIfOnlyPlayerLeftDuringMatch(code)) {
           applyPlayerLeftRoom(room)
           touchRoom(code)
@@ -1363,6 +1556,7 @@ export function initSocket(httpServer: HttpServer): Server {
         startedMafiaByRoom.delete(code)
         startedLiarByRoom.delete(code)
         startedMemoryByRoom.delete(code)
+        startedWhoAmIByRoom.delete(code)
       } else if (!dissolveRoomIfOnlyPlayerLeftDuringMatch(code)) {
         applyPlayerLeftRoom(room)
         touchRoom(code)

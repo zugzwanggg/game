@@ -6,6 +6,7 @@ import { tickSpyGame, SPY_MIN_PLAYERS } from '../games/spy/engine.js'
 import { tickMafiaGame, pruneMafiaForPlayers, MAFIA_MIN } from '../games/mafia/engine.js'
 import { tickLiarGame, pruneLiarForPlayers } from '../games/liar/engine.js'
 import { tickMemoryGame, pruneMemoryForPlayers } from '../games/memory/engine.js'
+import { pruneWhoAmIForPlayers } from '../games/whoami/engine.js'
 import { clearSpectatorFlagsForMatchStart } from './spectators.js'
 
 function resetDrawingLobby(g: NonNullable<RoomState['drawingGame']>, room: RoomState) {
@@ -231,6 +232,10 @@ export function applyPlayerLeftRoom(room: RoomState) {
   if (room.game === 'memory' && room.memoryGame) {
     pruneMemoryForPlayers(room)
   }
+
+  if (room.game === 'whoami' && room.whoamiGame) {
+    pruneWhoAmIForPlayers(room)
+  }
 }
 
 const ROOM_CODE_LEN = 6
@@ -398,6 +403,18 @@ export function createRoom(args: {
             inputProgress: {},
             winnerId: null,
             lastEliminatedPlayerId: null,
+          }
+        : undefined,
+    whoamiGame:
+      args.game === 'whoami'
+        ? {
+            matchId: 0,
+            status: 'lobby',
+            startedAt: null,
+            categoryFilter: null,
+            difficultyFilter: null,
+            assignments: {},
+            solved: {},
           }
         : undefined,
     round: {
