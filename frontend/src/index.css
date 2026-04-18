@@ -36,14 +36,6 @@
   border: 1px solid rgba(42, 47, 82, 0.8);
 }
 
-.glow-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  pointer-events: none;
-  opacity: 0.15;
-}
-
 @layer utilities {
   .scrollbar-none {
     scrollbar-width: none;

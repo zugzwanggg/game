@@ -26,12 +26,6 @@ export default function GamesHub() {
 
   return (
     <div className="relative min-h-full px-4 py-6 sm:px-8 sm:py-8">
-      <div className="glow-orb bg-accent -left-20 top-0 h-96 w-96" />
-      <div
-        className="glow-orb top-40 right-0 h-80 w-80"
-        style={{ background: 'rgba(56, 189, 248, 0.12)' }}
-      />
-
       <div className="relative mb-8">
         <label htmlFor="games-search" className="sr-only">
           Search games

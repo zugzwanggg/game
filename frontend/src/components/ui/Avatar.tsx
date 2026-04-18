@@ -1,11 +1,6 @@
 import { Skull } from 'lucide-react'
 
-const GRADIENTS: [string, string][] = [
-  ['#7B61FF', '#E040FB'],
-  ['#00D4AA', '#7B61FF'],
-  ['#FF6B6B', '#E040FB'],
-  ['#FFB800', '#FF6B6B'],
-]
+const AVATAR_BG = ['#7B61FF', '#00D4AA', '#FF6B6B', '#FFB800'] as const
 
 type Size = 'sm' | 'md' | 'lg'
 
@@ -23,7 +18,7 @@ type AvatarProps = {
 }
 
 export default function Avatar({ name = '?', size = 'md', variant = 'default' }: AvatarProps) {
-  const [a, b] = GRADIENTS[name.charCodeAt(0) % GRADIENTS.length]
+  const fill = AVATAR_BG[name.charCodeAt(0) % AVATAR_BG.length]
   const initials = name.slice(0, 2).toUpperCase()
   const eliminated = variant === 'eliminated'
 
@@ -35,7 +30,7 @@ export default function Avatar({ name = '?', size = 'md', variant = 'default' }:
           'flex items-center justify-center rounded-full font-bold text-white',
           eliminated ? 'grayscale contrast-95 ring-2 ring-rose-900/60 ring-offset-2 ring-offset-base' : '',
         ].join(' ')}
-        style={{ background: `linear-gradient(135deg, ${a}, ${b})` }}
+        style={{ backgroundColor: fill }}
       >
         {initials}
       </div>

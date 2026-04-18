@@ -664,7 +664,7 @@ export default function MafiaGame() {
             <div
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 shadow-inner"
               style={{
-                background: `linear-gradient(145deg, ${brandAccent}35, ${brandAccent}12)`,
+                backgroundColor: `${brandAccent}28`,
                 boxShadow: `0 0 24px ${brandAccent}22`,
               }}
               aria-hidden
@@ -705,7 +705,7 @@ export default function MafiaGame() {
       </div>
 
       {!imAlive && matchActive && (
-        <div className="mb-4 flex shrink-0 items-start gap-3 rounded-2xl border border-rose-500/45 bg-gradient-to-r from-rose-950/55 to-rose-950/25 px-4 py-3 text-rose-50 shadow-[0_0_0_1px_rgba(244,63,94,0.12)]">
+        <div className="mb-4 flex shrink-0 items-start gap-3 rounded-2xl border border-rose-500/45 bg-rose-950/40 px-4 py-3 text-rose-50 shadow-[0_0_0_1px_rgba(244,63,94,0.12)]">
           <Skull size={22} className="mt-0.5 shrink-0 text-rose-400" aria-hidden />
           <div className="min-w-0">
             <div className="text-sm font-bold tracking-wide text-rose-100">You are eliminated</div>

@@ -1,13 +1,5 @@
 import type { GameDefinition } from '../../games'
 
-const stripeBg = `repeating-linear-gradient(
-  -12deg,
-  transparent,
-  transparent 14px,
-  rgba(255, 255, 255, 0.04) 14px,
-  rgba(255, 255, 255, 0.04) 15px
-)`
-
 type GameCoverProps = {
   game: GameDefinition
   /** `card` = 16:9 for hub tiles; `detail` = wider hero on game page */
@@ -21,8 +13,7 @@ function Placeholder({ game, variant }: { game: GameDefinition; variant: 'card' 
     <div
       className="absolute inset-0 flex flex-col items-center justify-center gap-2"
       style={{
-        backgroundColor: `${game.accentColor}18`,
-        backgroundImage: stripeBg,
+        backgroundColor: `${game.accentColor}22`,
       }}
     >
       <span

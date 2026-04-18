@@ -503,7 +503,7 @@ export default function LiarsRevolverGame() {
             {/* Center pile */}
             <div className="absolute left-1/2 top-1/2 z-20 flex max-w-[calc(100%-0.5rem)] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5 px-1 sm:gap-2">
               <div className="relative flex h-20 w-[4.5rem] items-center justify-center rounded-lg border border-border bg-card shadow-lg sm:h-24 sm:w-20">
-                <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-accent/25 to-zinc-800/20" />
+                <div className="absolute inset-0 rounded-lg bg-zinc-900/35" />
                 <span className="relative text-2xl font-black text-text/90 sm:text-3xl">
                   {liar?.pileCardCount ?? 0}
                 </span>

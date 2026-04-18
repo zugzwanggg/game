@@ -104,11 +104,6 @@ export default function GameRoom() {
       }}
     />
     <div className="relative isolate min-h-full overflow-x-hidden px-4 py-6 sm:px-8 sm:py-8">
-      <div
-        className="glow-orb -right-20 top-0 h-96 w-96"
-        style={{ background: game.glowColor }}
-      />
-
       <button
         type="button"
         onClick={() => void navigate('/games')}

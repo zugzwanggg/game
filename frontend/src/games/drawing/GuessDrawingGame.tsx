@@ -837,7 +837,7 @@ export default function GuessDrawingGame() {
             backgroundSize: 'clamp(15rem, 38vw, 24rem)',
           }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-white/15" />
+        <div className="absolute inset-0 bg-white/[0.06]" />
       </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 text-zinc-900 sm:px-6 sm:py-5 lg:min-h-0">
