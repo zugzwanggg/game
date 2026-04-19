@@ -29,19 +29,23 @@ export default function GameCard({ game }: GameCardProps) {
           <h3 className="text-lg font-bold text-text">{game.label}</h3>
           {game.beta && <Badge color="muted">Beta</Badge>}
         </div>
-        <p className="mb-4 text-sm leading-relaxed text-muted">{game.tagline}</p>
+        <p className={`text-sm leading-relaxed text-muted ${game.hideCardMeta ? 'mb-6' : 'mb-4'}`}>{game.tagline}</p>
 
-        <p className="mb-4 text-xs text-muted">
-          {game.players} · {game.duration}
-        </p>
+        {!game.hideCardMeta && (
+          <>
+            <p className="mb-4 text-xs text-muted">
+              {game.players} · {game.duration}
+            </p>
 
-        <div className="mb-5 flex flex-wrap gap-1.5">
-          {game.tags.map((tag) => (
-            <Badge key={tag} color="muted">
-              {tag}
-            </Badge>
-          ))}
-        </div>
+            <div className="mb-5 flex flex-wrap gap-1.5">
+              {game.tags.map((tag) => (
+                <Badge key={tag} color="muted">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          </>
+        )}
 
         <div className="flex items-center gap-1.5 text-sm font-semibold text-accent transition-all group-hover:gap-2.5">
           Play now <ArrowRight size={15} />

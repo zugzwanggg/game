@@ -23,6 +23,18 @@ export default {
         'glow-fuchsia': '0 0 40px rgba(224, 64, 251, 0.2)',
         card: '0 4px 24px rgba(0,0,0,0.4)',
       },
+      keyframes: {
+        'whoami-shake': {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '20%': { transform: 'translateX(-6px)' },
+          '40%': { transform: 'translateX(6px)' },
+          '60%': { transform: 'translateX(-4px)' },
+          '80%': { transform: 'translateX(4px)' },
+        },
+      },
+      animation: {
+        'whoami-shake': 'whoami-shake 0.38s ease-in-out',
+      },
     },
   },
 }

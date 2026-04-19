@@ -1,4 +1,4 @@
-import { Eye, ImageIcon, LayoutGrid, Pencil, Skull, Target, type LucideIcon } from 'lucide-react'
+import { Eye, ImageIcon, Images, LayoutGrid, Pencil, Skull, Target, type LucideIcon } from 'lucide-react'
 
 import guessTheDrawingCover from '../assets/covers/guess_the_drawing_cover.png'
 import liarsRevolverCover from '../assets/covers/liars_revolver_cover.png'
@@ -6,6 +6,7 @@ import mafiaCover from '../assets/covers/mafia_cover.png'
 import memeBattleCover from '../assets/covers/meme_battle_cover.png'
 import memoryArenaCover from '../assets/covers/memory_cover.png'
 import spyCover from '../assets/covers/spy_cover.png'
+import whoAmICover from '../assets/covers/who_am_i_cover.png'
 
 export type GameDefinition = {
   id: string
@@ -23,6 +24,10 @@ export type GameDefinition = {
   maxPlayers: number
   duration: string
   tags: string[]
+  /** Games hub card: hide duration line and tag pills */
+  hideCardMeta?: boolean
+  /** /games/:id room pitch: hide stats row and tag pills */
+  hideLobbyMeta?: boolean
 }
 
 export const GAMES: Record<string, GameDefinition> = {
@@ -101,6 +106,21 @@ export const GAMES: Record<string, GameDefinition> = {
     maxPlayers: 12,
     duration: '~5 min',
     tags: ['memory', 'reaction', 'party'],
+  },
+  whoami: {
+    id: 'whoami',
+    label: 'Who Am I?',
+    tagline: 'You see their card. Not yours.',
+    description:
+      'Everyone gets a secret name. The table shows every card except the one on your back. Talk it out in chat, then type what you think you are.',
+    icon: Images,
+    coverImage: whoAmICover,
+    glowColor: 'rgba(168, 85, 247, 0.28)',
+    accentColor: '#A855F7',
+    players: '2-12 players',
+    maxPlayers: 12,
+    duration: '~15 min',
+    tags: ['party', 'real-time', 'trivia'],
   },
   mafia: {
     id: 'mafia',

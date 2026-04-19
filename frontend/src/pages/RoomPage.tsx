@@ -47,7 +47,7 @@ export default function RoomPage() {
   }, [roomCode])
 
   const goToPlayIfMatch = useCallback(
-    (game: 'drawing' | 'meme' | 'spy' | 'mafia' | 'liar' | 'memory') => {
+    (game: 'drawing' | 'meme' | 'spy' | 'mafia' | 'liar' | 'memory' | 'whoami') => {
       if (!roomCode || playRedirectDoneRef.current) return
       playRedirectDoneRef.current = true
       void navigate(playPathForRoom(roomCode, game), { replace: true })
@@ -89,9 +89,13 @@ export default function RoomPage() {
             res.room.game === 'meme' ||
             res.room.game === 'spy' ||
             res.room.game === 'mafia' ||
-            res.room.game === 'liar')
+            res.room.game === 'liar' ||
+            res.room.game === 'memory' ||
+            res.room.game === 'whoami')
         ) {
-          goToPlayIfMatch(res.room.game as 'drawing' | 'meme' | 'spy' | 'mafia' | 'liar')
+          goToPlayIfMatch(
+            res.room.game as 'drawing' | 'meme' | 'spy' | 'mafia' | 'liar' | 'memory' | 'whoami',
+          )
         }
       } catch {
         // ignore; socket will hydrate if possible
@@ -129,14 +133,17 @@ export default function RoomPage() {
                     ? 'liar'
                     : state?.memoryGame
                       ? 'memory'
-                      : undefined)
+                      : state?.whoamiGame
+                        ? 'whoami'
+                        : undefined)
         if (
           gRaw === 'drawing' ||
           gRaw === 'meme' ||
           gRaw === 'spy' ||
           gRaw === 'mafia' ||
           gRaw === 'liar' ||
-          gRaw === 'memory'
+          gRaw === 'memory' ||
+          gRaw === 'whoami'
         )
           goToPlayIfMatch(gRaw)
       }
@@ -175,6 +182,15 @@ export default function RoomPage() {
       if (payload?.game !== 'memory') return
       void navigate(`/games/memory/play?room=${encodeURIComponent(roomCode)}`)
     }
+    const onWhoAmIStarted = (payload: { code?: string; game?: string }) => {
+      if (String(payload?.code ?? '').toUpperCase() !== roomCode.toUpperCase()) return
+      if (payload?.game !== 'whoami') return
+      void navigate(`/games/whoami/play?room=${encodeURIComponent(roomCode)}`)
+    }
+    const onWhoAmIEnterPlay = (payload: { code?: string }) => {
+      if (String(payload?.code ?? '').toUpperCase() !== roomCode.toUpperCase()) return
+      void navigate(`/games/whoami/play?room=${encodeURIComponent(roomCode)}`)
+    }
     socket.on('room:state', onState)
     socket.on('game:drawing:started', onGameStarted)
     socket.on('game:meme:started', onMemeStarted)
@@ -182,6 +198,8 @@ export default function RoomPage() {
     socket.on('game:mafia:started', onMafiaStarted)
     socket.on('game:liar:started', onLiarStarted)
     socket.on('game:memory:started', onMemoryStarted)
+    socket.on('game:whoami:started', onWhoAmIStarted)
+    socket.on('game:whoami:enter_play', onWhoAmIEnterPlay)
 
     if (!ready) return
     if (!principal) {
@@ -204,6 +222,9 @@ export default function RoomPage() {
       socket.off('game:spy:started', onSpyStarted)
       socket.off('game:mafia:started', onMafiaStarted)
       socket.off('game:liar:started', onLiarStarted)
+      socket.off('game:memory:started', onMemoryStarted)
+      socket.off('game:whoami:started', onWhoAmIStarted)
+      socket.off('game:whoami:enter_play', onWhoAmIEnterPlay)
     }
   }, [roomCode, principal, ready, navigate, goToPlayIfMatch, handlePlayersSnapshot])
 
@@ -508,6 +529,32 @@ export default function RoomPage() {
                     if (!socket.connected) socket.connect()
                     socket.emit('game:memory:start')
                     void navigate(`/games/memory/play?room=${encodeURIComponent(roomCode ?? '')}`)
+                  }}
+                >
+                  {players.length < 2
+                    ? 'Need 2+ players'
+                    : players.length > 12
+                      ? 'Max 12 players'
+                      : 'Start match'}
+                </Button>
+              ) : (
+                <p className="text-center text-sm text-muted">
+                  Only the room host can start the match.
+                </p>
+              )
+            ) : game?.id === 'whoami' ? (
+              isHost ? (
+                <Button
+                  variant="teal"
+                  size="lg"
+                  className="w-full justify-center"
+                  type="button"
+                  disabled={players.length < 2 || players.length > 12}
+                  onClick={() => {
+                    const socket = getSocket()
+                    if (!socket.connected) socket.connect()
+                    socket.emit('game:whoami:enter_play')
+                    void navigate(`/games/whoami/play?room=${encodeURIComponent(roomCode ?? '')}`)
                   }}
                 >
                   {players.length < 2

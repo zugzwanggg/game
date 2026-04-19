@@ -130,28 +130,32 @@ export default function GameRoom() {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5">
-              <Users size={15} className="text-accent" />
-              <span className="text-sm font-medium text-text">
-                {game.players}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5">
-              <Clock size={15} className="text-muted" />
-              <span className="text-sm font-medium text-text">
-                {game.duration}
-              </span>
-            </div>
-          </div>
+          {!game.hideLobbyMeta && (
+            <>
+              <div className="flex flex-wrap gap-3">
+                <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5">
+                  <Users size={15} className="text-accent" />
+                  <span className="text-sm font-medium text-text">
+                    {game.players}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5">
+                  <Clock size={15} className="text-muted" />
+                  <span className="text-sm font-medium text-text">
+                    {game.duration}
+                  </span>
+                </div>
+              </div>
 
-          <div className="flex flex-wrap gap-2">
-            {game.tags.map((tag) => (
-              <Badge key={tag} color="accent">
-                {tag}
-              </Badge>
-            ))}
-          </div>
+              <div className="flex flex-wrap gap-2">
+                {game.tags.map((tag) => (
+                  <Badge key={tag} color="accent">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            </>
+          )}
 
           {game.id === 'drawing' && (
             <p className="text-sm text-muted">
