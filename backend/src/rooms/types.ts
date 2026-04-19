@@ -111,7 +111,7 @@ export type RoomState = {
     status: 'lobby' | 'playing'
     startedAt: number | null
     /** Host picks in the play view before start. */
-    categoryFilter: 'character' | 'person' | null
+    categoryFilter: 'character' | 'person' | 'mixed' | null
     /** Host picks in the play view before start (`any` = all difficulties). */
     difficultyFilter: WhoAmIDifficultyTier | null
     /** Server-only full map; never broadcast to clients. */

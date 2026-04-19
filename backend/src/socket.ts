@@ -39,6 +39,7 @@ import {
 } from './games/memory/engine.js'
 import {
   pickItemsForPlayerCount,
+  pickMixedItemsForPlayerCount,
   startWhoAmIMatch,
   toItemInputsFromRows,
   tryWhoAmIGuess,
@@ -46,6 +47,7 @@ import {
   WHOAMI_MIN_PLAYERS,
 } from './games/whoami/engine.js'
 import { fetchRandomGameItems } from './db/gameItems.js'
+import type { WhoAmIItemInput } from './games/whoami/types.js'
 import { whoAmILargeImageUrl } from './games/whoami/imageUrl.js'
 import { getCorsOrigins } from './corsOrigins.js'
 
@@ -1028,7 +1030,7 @@ export function initSocket(httpServer: HttpServer): Server {
       if (!principal || principal.kind !== 'user' || principal.id !== room.createdByUserId) return
       let changed = false
       const c = String(payload?.category ?? '').trim()
-      if (c === 'person' || c === 'character') {
+      if (c === 'person' || c === 'character' || c === 'mixed') {
         room.whoamiGame.categoryFilter = c
         changed = true
       }
@@ -1068,27 +1070,32 @@ export function initSocket(httpServer: HttpServer): Server {
       )
         return
       const itemType = room.whoamiGame.categoryFilter
-      if (itemType !== 'character' && itemType !== 'person') return
-      const diff = room.whoamiGame.difficultyFilter
-      if (diff !== 'easy' && diff !== 'medium' && diff !== 'hard' && diff !== 'any') return
+      if (itemType !== 'character' && itemType !== 'person' && itemType !== 'mixed') return
 
       void (async () => {
         const code = joinedCode!
         const r = getRoom(code)
         if (!r || r.game !== 'whoami' || !r.whoamiGame) return
         const filter = r.whoamiGame.categoryFilter
-        if (filter !== 'character' && filter !== 'person') return
-        const difficulty = r.whoamiGame.difficultyFilter
-        if (difficulty !== 'easy' && difficulty !== 'medium' && difficulty !== 'hard' && difficulty !== 'any')
-          return
-        let dbRows: Awaited<ReturnType<typeof fetchRandomGameItems>> = []
+        if (filter !== 'character' && filter !== 'person' && filter !== 'mixed') return
+        const difficulty = 'any' as const
+        let picked: WhoAmIItemInput[] = []
         try {
-          dbRows = await fetchRandomGameItems(200, filter, difficulty)
+          if (filter === 'mixed') {
+            const [chars, people] = await Promise.all([
+              fetchRandomGameItems(200, 'character', difficulty),
+              fetchRandomGameItems(200, 'person', difficulty),
+            ])
+            const fromDb = toItemInputsFromRows([...chars, ...people])
+            picked = pickMixedItemsForPlayerCount(fromDb, r.players.length, difficulty)
+          } else {
+            const dbRows = await fetchRandomGameItems(200, filter, difficulty)
+            const fromDb = toItemInputsFromRows(dbRows)
+            picked = pickItemsForPlayerCount(fromDb, r.players.length, filter, difficulty)
+          }
         } catch {
-          dbRows = []
+          picked = []
         }
-        const fromDb = toItemInputsFromRows(dbRows)
-        const picked = pickItemsForPlayerCount(fromDb, r.players.length, filter, difficulty)
         r.chat = []
         if (!startWhoAmIMatch(r, Date.now(), picked)) return
         touchRoom(code)
@@ -1097,16 +1104,31 @@ export function initSocket(httpServer: HttpServer): Server {
       })()
     })
 
-    socket.on('game:whoami:guess', (payload: { guess?: string }) => {
-      if (!joinedCode || !joinedPlayerId) return
+    socket.on('game:whoami:guess', (payload: { guess?: string }, ack?: (r: { ok: boolean; correct?: boolean }) => void) => {
+      const reply = (r: { ok: boolean; correct?: boolean }) => {
+        if (typeof ack === 'function') ack(r)
+      }
+      if (!joinedCode || !joinedPlayerId) {
+        reply({ ok: false })
+        return
+      }
       const room = getRoom(joinedCode)
-      if (!room || room.game !== 'whoami' || !room.whoamiGame) return
-      if (playerIsSpectator(room, joinedPlayerId)) return
+      if (!room || room.game !== 'whoami' || !room.whoamiGame) {
+        reply({ ok: false })
+        return
+      }
+      if (playerIsSpectator(room, joinedPlayerId)) {
+        reply({ ok: false })
+        return
+      }
       const guess = String(payload?.guess ?? '').trim()
       const res = tryWhoAmIGuess(room, joinedPlayerId, guess, Date.now())
+      reply({ ok: res.ok, correct: res.correct === true })
       if (!res.ok) return
-      touchRoom(joinedCode)
-      emitRoomState(joinedCode)
+      if (res.correct) {
+        touchRoom(joinedCode)
+        emitRoomState(joinedCode)
+      }
     })
 
     socket.on('game:whoami:view:request', () => {

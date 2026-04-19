@@ -99,6 +99,38 @@ export function pickItemsForPlayerCount(
   return uniq.slice(0, n)
 }
 
+/** Picks unique names from a pool that already contains both `character` and `person` rows. */
+export function pickMixedItemsForPlayerCount(
+  poolItems: WhoAmIItemInput[],
+  playerCount: number,
+  difficultyTier: WhoAmIDifficultyTier,
+): WhoAmIItemInput[] {
+  const n = Math.max(
+    WHOAMI_MIN_PLAYERS,
+    Math.min(WHOAMI_MAX_PLAYERS, Math.floor(playerCount)),
+  )
+  const pool = poolItems.filter((it) => it.type === 'character' || it.type === 'person')
+  const fallbacks = WHOAMI_FALLBACK_ITEMS
+  const uniq: WhoAmIItemInput[] = []
+  const seen = new Set<string>()
+  for (const it of shuffle([...pool])) {
+    const key = normalizeGuess(it.name)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    uniq.push(it)
+    if (uniq.length >= n) break
+  }
+  for (const it of shuffle([...fallbacks])) {
+    if (uniq.length >= n) break
+    if (difficultyTier !== 'any' && fallbackDifficulty(it) !== difficultyTier) continue
+    const key = normalizeGuess(it.name)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    uniq.push(it)
+  }
+  return uniq.slice(0, n)
+}
+
 export function startWhoAmIMatch(room: RoomState, t: number, items: WhoAmIItemInput[]): boolean {
   if (room.game !== 'whoami' || !room.whoamiGame) return false
   const g = room.whoamiGame
